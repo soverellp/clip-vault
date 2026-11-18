@@ -34,6 +34,8 @@ and the thumbnail sizes are compared (`verify FAILED` = exit 1). Exit 2 = nothin
 into NEW entries and prints the hint to run `--meta-only` once for `streams[]` and the thumbnail. Validate the file first:
 `python3 .claude/skills/clips/scripts/vault_meta.py check`.
 
+`clipped_at` and `lang` (D40) travel with the other contract fields; `streams[].clipped_at` is the newest non-trashed clip of the stream, `lang`/`lang_name` come from the stream's `language` (`unknown` when absent). `check_index.py` prints their counts.
+
 ## What it does
 - Local clips: `streams/index.json`; the video file preference, index v2 fields and ffprobe fields come from
   `build_hfvault.py` (`PREFER`, `enrich_item`, `safe_id`), so both tools write identical entries. sha256 is computed per file.

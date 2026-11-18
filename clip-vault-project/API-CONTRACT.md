@@ -5,7 +5,7 @@
 ## 0. The Library data contract in `index.json` (D39; written by `vault_sync.py`, read by the Library UI)
 All fields are OPTIONAL: old clients ignore them and old entries simply lack them. A reader must treat a missing field as "unknown" (`reaction` missing = `unrated`, `kind` missing = `game`, `streams` missing = group by `clip.stream`).
 
-**Top level** gets `streams` (array, newest `date` first):
+**Top level** gets `streams` (array, newest `clipped_at` first; old data without it: newest `date` first):
 | Field | Type | Meaning |
 |---|---|---|
 | `id` | string | the stream folder name, e.g. `2026-11-18_kai-cenat-playing-every-gta-until-i-beat-it`; equals `clip.stream` |
@@ -13,6 +13,9 @@ All fields are OPTIONAL: old clients ignore them and old entries simply lack the
 | `channel` | string | channel name |
 | `date` | `YYYY-MM-DD` | the stream's upload date (`docs/info.json` `upload_date`; else the date it was added) |
 | `url` | string | the YouTube link |
+| `clipped_at` | `YYYY-MM-DDTHH:MM:SSZ` | when the stream's NEWEST clip was clipped (rendered), UTC; recomputed on every `--meta-only` (D40). The Library sorts folders by it |
+| `lang` | `en`, `hi`, ... or `unknown` | the stream's language (`stream.json` `language`); never guessed |
+| `lang_name` | string | display name (`English`, `Hindi`; `Unknown`) |
 | `thumb` | string, optional | `streams/<id>/thumb.jpg` in the dataset (640 px wide JPEG, the stream's YouTube thumbnail); fetch it like a poster with the read token |
 | `clip_count` | int | clips of this stream in the index that are NOT in the trash (recomputed on every `--meta-only`) |
 
@@ -28,13 +31,15 @@ All fields are OPTIONAL: old clients ignore them and old entries simply lack the
 | `tier` | `A`, `B`, `C` or `null` | the Opus review confidence of the moment; `null` = never ranked |
 | `rank` | int >= 1 or `null` | position inside its stream, 1 = best; both variants of a moment share the rank; `null` = unknown (never invented) |
 | `why` | string, at most 110 chars | one line: what happens |
+| `clipped_at` | `YYYY-MM-DDTHH:MM:SSZ` | when the clip was rendered (UTC). Both variants of a moment carry the MAIN (with-streamer) clip's time. Older clips: their day at `T00:00:00Z` (time of day unknown). The "Newest clipped" sort and the card text "Clipped 18 Nov, 14:12" use it (D40) |
+| `lang` | `en`, `hi`, ... or `unknown` | the stream's language, copied onto the clip so a flat list can filter |
 | `hook` | string | the on-screen hook text (an existing field; admins can edit it in the site) |
 
 **Who owns what.** `vault_sync.py --meta-only` always sets the contract fields from `vault_meta.json` (the pipeline's data) EXCEPT `stream` and `hook`, which admins edit in the site: those are only filled when empty. It never touches `title`, `desc`, `post`, `tags`, `trashed_at`, `purge_after`, `sha256`, `size` or any file. **Any client that rewrites `index.json` (the static admin mode, the server store) MUST pass unknown fields and the top-level `streams` through unchanged**, otherwise the first admin edit wipes them (`vault_sync.py --meta-only` restores them).
 
 **Reading it with the read token** (same route as the site): `GET https://huggingface.co/datasets/Soverellp/clip-vault/resolve/main/index.json` and `.../streams/<id>/thumb.jpg`, header `Authorization: Bearer <read token>`. Check script: `python3 site/hfvault/check_index.py` (counts only, no token printed).
 
-**`vault_meta.json`** (`streams/<s>/docs/vault_meta.json`): `{"version":1,"stream":"<id>","clips":{"<clip folder id>":{group, variant, reaction, reaction_note, kind, tier, rank, why, hook}}}`; extra keys (e.g. `moment`) are ignored. Validate with `python3 .claude/skills/clips/scripts/vault_meta.py check`.
+**`vault_meta.json`** (`streams/<s>/docs/vault_meta.json`): `{"version":1,"stream":"<id>","clips":{"<clip folder id>":{group, variant, reaction, reaction_note, kind, tier, rank, why, hook, clipped_at, lang}}}` (`python3 .claude/skills/clips/scripts/vault_meta.py stamp` fills clipped_at and lang); extra keys (e.g. `moment`) are ignored. Validate with `python3 .claude/skills/clips/scripts/vault_meta.py check`.
 
 ## 1. Static mode: what the page calls (design; `site/hfstatic` is in progress)
 | What | Call | Token |

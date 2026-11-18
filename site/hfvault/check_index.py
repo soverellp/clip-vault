@@ -26,7 +26,7 @@ def main(argv=None):
     st, body = get("index.json")
     idx = json.loads(body); clips, streams = idx.get("clips", []), idx.get("streams", [])
     bad = []
-    for k in ("stream", "group", "variant", "reaction", "kind", "why"):
+    for k in ("stream", "group", "variant", "reaction", "kind", "why", "clipped_at", "lang"):
         n = sum(1 for c in clips if c.get(k) not in (None, ""))
         print(f"clips with {k}: {n}/{len(clips)}")
         if n != len(clips) and k != "why": bad.append(k)
@@ -35,7 +35,7 @@ def main(argv=None):
     ids = {s["id"] for s in streams}
     for s in streams:
         code, img = get(s["thumb"]) if s.get("thumb") else (None, b"")
-        print(f"stream {s['id']}: {s.get('clip_count')} clips, thumb {len(img) // 1000} KB (HTTP {code})")
+        print(f"stream {s['id']}: lang {s.get('lang')} ({s.get('lang_name')}), clipped_at {s.get('clipped_at')}, {s.get('clip_count')} clips, thumb {len(img) // 1000} KB (HTTP {code})")
         if not img.startswith(b"\xff\xd8"): bad.append("thumb " + s["id"])
     if any(c.get("stream") not in ids for c in clips): bad.append("clip stream not in streams[]")
     print("HTTP", st, "version", idx.get("version"), "streams", len(streams), "PROBLEMS: " + ", ".join(bad) if bad else "ok")

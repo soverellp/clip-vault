@@ -16,6 +16,13 @@ Reading guide after D23: D9, D11-D16, D18 and D22 describe the SERVER MODE (save
 - **Why:** the owner wants the source safe on GitHub without manual steps, and the vault code reviewable as its own repo.
 - **Consequences:** edits made directly in `clip-vault` are overwritten by the next sync (edit in clipper). The scan is pattern-based and does not prove the absence of secrets; docs are the likeliest place for a slip.
 
+## D40. Library order = newest CLIPPED first; visible sort; working Filter; language chips (`clipped_at`, `lang`)
+- Date: 2026-11-18
+- **Decision:** the owner means "newest clipped" (when the clip was rendered), not the YouTube upload date. Each clip entry gets `clipped_at` (UTC ISO with time, `vault_meta.json`) and `lang`; each `streams[]` entry gets `clipped_at` (= its newest non-trashed clip), `lang` and `lang_name`. Folders sort by `clipped_at`, falling back to `date` for old data. A visible sort control sits outside Filter on both screens; the Filter button filters folders on the home screen (has reactions, has best picks) and the clips inside a stream; a language chip row shows on home only when 2 or more languages exist.
+- **How `clipped_at` is set** (`vault_meta.py stamp`): the FIRST git commit that contains the clip's video (autosave runs seconds after a render; a later re-render is a later commit, so this is the original render, e.g. 13259 was re-rendered at 14:09 but is stamped 13:39). Both variants of a moment get the main (with-streamer) clip's time. The 18 older clips were bulk-imported in one commit, so they get their `created` day at 00:00:00Z (DAY ONLY, the time of day is unknown; the UI shows the day without a time). `lang` is copied from the stream's `language` (`stream.json`/`index.json`); never guessed, `unknown` when absent.
+- **Consequences:** the live index was updated with `vault_sync.py --meta-only` (one commit, only these fields). Both older streams are `hi` in `stream.json`; "THIS IS NOT A GAME" was not checked for English speech.
+- Status: done (UI proven with Playwright fixtures + mocked Hub only).
+
 ## D39. Library metadata in the vault index: `streams[]`, per-clip group/variant/reaction/tier/rank/why, stream thumbnails (`vault_sync.py --meta-only`)
 - **Date:** 2026-11-18
 - **Status:** Accepted; applied to the live vault (46 clips, 3 streams, 3 thumbnails); the Library UI that reads it is built by another agent and NOT yet checked against it

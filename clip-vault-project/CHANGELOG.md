@@ -2,6 +2,11 @@
 
 > **TL;DR** All dates 2026-11-17, times UTC from `git log` for the older entries. Hashes verified with `git log` in the clipper repo. Add new entries at the TOP. The newest entry below has no hashes: it was written without git access and nothing was committed by the author.
 
+## 2026-11-18 (D40: newest clipped first, visible sort, working Filter, language chips)
+- Data: `clipped_at` + `lang` per clip (`vault_meta.json`, filled by NEW `vault_meta.py stamp`), `streams[].clipped_at/lang/lang_name` (`build_hfvault.py`, `vault_sync.py --meta-only`; live index updated in one commit, `check_index.py` verifies). Docs: API-CONTRACT section 0, DATA-MODEL, VAULT-SYNC, DECISIONS D40.
+- UI (`library.js`, `moments.js`, `moments.css`, `hubapi.js` `normalizeStream`): folders newest clipped first (fallback `date`), visible sort control on both screens, Filter works on home (reactions, best picks) and in a stream, language chips (only with 2+ languages), "Clipped 18 Nov, 14:12" on folders and cards, language tag in the stream header.
+- Tests: hfvault pytest 143 (+2), `test_library.js` 104 (+about 30 cases), `v4.js` tab order updated.
+
 ## 2026-11-18 (source pushed to clip-vault main, D41)
 - NEW `.claude/scripts/sync_vault_repo.sh` + `.claude/scripts/vault_repo_README.md` (generated top-level README of clip-vault; it replaces the old clipboard-vault placeholder). `.claude/scripts/autosave.sh` calls it after each save (non-fatal, skipped mid-merge or when HEAD is unchanged). Secret scan fails closed; fast-forward only; never force.
 
