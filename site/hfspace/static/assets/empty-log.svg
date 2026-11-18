@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" width="200" height="160"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b7bff"/><stop offset=".55" stop-color="#ff6ee0"/><stop offset="1" stop-color="#38e1ff"/></linearGradient></defs>
+<ellipse cx="100" cy="146" rx="52" ry="7" fill="#8b7bff" opacity=".22"><animate attributeName="rx" values="52;44;52" dur="4s" repeatCount="indefinite"/></ellipse>
+<g><animateTransform attributeName="transform" type="translate" values="0 0;0 -7;0 0" dur="4s" repeatCount="indefinite"/>
+<rect x="54" y="26" width="92" height="108" rx="12" fill="#171726" stroke="url(#g)" stroke-width="5"/><path d="M72 58h56M72 80h56M72 102h34" stroke="#8b7bff" stroke-width="6" stroke-linecap="round" opacity=".6"/>
+</g>
+<circle cx="30" cy="40" r="3" fill="#38e1ff"><animate attributeName="opacity" values="1;.2;1" dur="2.4s" repeatCount="indefinite"/></circle>
+<circle cx="172" cy="58" r="4" fill="#ff6ee0"><animate attributeName="opacity" values=".3;1;.3" dur="3s" repeatCount="indefinite"/></circle>
+<path d="M168 20l2 6 6 2-6 2-2 6-2-6-6-2 6-2z" fill="#8b7bff"><animate attributeName="opacity" values="1;.25;1" dur="2s" repeatCount="indefinite"/></path>
+</svg>

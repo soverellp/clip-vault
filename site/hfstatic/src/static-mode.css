@@ -1,0 +1,11 @@
+/* Static-mode additions (loaded after the shared UI styles). */
+#try-another{display:none}
+.adminbtn[aria-pressed="true"]{outline:1px solid var(--warn,#ffcf5c)}
+#admin-token{width:100%;-webkit-text-security:disc;text-security:disc}
+.framed-msg{display:none}
+html[data-framed="1"] #app,html[data-framed="1"] #dialogs,html[data-framed="1"] #hero{display:none!important}
+html[data-framed="1"] .framed-msg{display:block;padding:24px;font:16px/1.5 system-ui,sans-serif;color:var(--text,#fff)}
+html[data-framed="1"] body{background:var(--bg,#07070d)}
+@media (max-width:560px){.adminbtn{padding-inline:10px;min-width:40px}.adminbtn .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}}
+.remember{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.9rem;cursor:pointer}
+.remember input{width:18px;height:18px;margin:0}

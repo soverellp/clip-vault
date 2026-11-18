@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src blob: data:; media-src blob:; connect-src 'self' https://huggingface.co https://*.hf.co; base-uri 'none'; form-action 'none'">
+<meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>Clip Vault</title>
+<link rel="stylesheet" href="style.css"></head><body>
+<form id="f"><input id="pw" type="password" placeholder="Passphrase" autocomplete="off" autofocus><button>Unlock</button></form><p id="msg"></p>
+<main id="app" hidden><header><h1>Clip Vault</h1><button id="lock" class="g">Lock</button></header><p class="s" id="cnt"></p><div class="fl" id="flt"></div><div id="grid"></div></main>
+<dialog id="dlg"><h3 id="t"></h3><div id="st"></div><video id="v" controls playsinline hidden></video>
+<div class="row"><button id="dl" class="g" hidden>Download</button><button class="g" id="cp" hidden>Copy post text</button><button id="x">Close</button></div><pre id="post"></pre></dialog>
+<script src="app.js"></script></body></html>
