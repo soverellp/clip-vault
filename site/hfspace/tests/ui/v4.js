@@ -41,6 +41,6 @@ module.exports = function register(X) {
     ok(await p.$$eval('.cat, .vbtn', (e) => e.every((x) => x.offsetHeight >= 44)), 'chips and pill buttons >= 44 px');
     await L.openFilter(p); ok(await nos(), 'filter menu open: no horizontal scroll'); await L.closeFilter(p);
     await p.focus('#q'); const o = []; for (let i = 0; i < 3; i++) { await p.keyboard.press('Tab'); o.push(await p.evaluate(() => document.activeElement.id || document.activeElement.className.split(' ')[0])); }
-    ok(o[0] === 'filter-btn' && o[1] === 'post-mode-btn' && o[2] === 'cat', 'tab order inside a stream: search, Filter, Post mode, first category (' + o + ')'); await done(p);
+    ok(o[0] === 'filter-btn' && o[1] === 'post-mode-btn' && o[2] === 'sbtn', 'tab order inside a stream: search, Filter, Post mode, the visible sort buttons (' + o + ')'); await done(p);
   });
 };
