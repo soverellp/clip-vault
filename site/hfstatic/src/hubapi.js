@@ -187,6 +187,21 @@ async function snapshot() {
   return p;
 }
 const fresh = () => { snapCache = null; return snapshot(); };
+// ---- live refresh helpers (used by autorefresh.js): a cheap head check, a forced re-read, and cache-busting of changed files
+export async function pollHead() {
+  if (!readToken) throw new ApiError(401, { error: 'unauthorized' });
+  const r = await hubOk(`${HUB}/api/datasets/${cfg.dataset}/revision/main`, { token: readToken });
+  const j = await r.json().catch(() => null);
+  return typeof j?.sha === 'string' && /^[0-9a-f]{7,64}$/.test(j.sha) ? j.sha : null;
+}
+export const invalidateSnapshot = () => { snapCache = null; };
+// Forget the cached blob of these repo paths (poster/thumbnail replaced in the dataset). Other blobs stay.
+export function dropMedia(paths) {
+  for (const p of paths || []) for (const key of [p, 'trash/' + p]) {
+    const u = posterCache.get(key);
+    if (u) { posterCache.delete(key); issuedUrls.delete(u); try { URL.revokeObjectURL(u); } catch { /* ignore */ } }
+  }
+}
 
 // ------------------------------------------------------------------ reads
 export async function listClips({ trash = false } = {}) {
@@ -438,7 +453,14 @@ async function commitChanges(snap, ch, { onBytes, signal } = {}) {
 const utf8 = s => new TextEncoder().encode(s);
 
 // Read the head, let build() plan, commit with parentCommit; on a conflict (409/412) re-read and rebuild, up to MAX_RETRIES times.
+let writing = 0, writeGeneration = 0;
+export const isWriting = () => writing > 0;
+export const writeGen = () => writeGeneration;
 async function transact(build, opts = {}) {
+  writing++; writeGeneration++;
+  try { return await transactRun(build, opts); } finally { writing--; writeGeneration++; }
+}
+async function transactRun(build, opts) {
   requireAdmin();
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const snap = await fresh();

@@ -97,7 +97,7 @@ function makeCard(m, view) {
 }
 // The poster follows the selected variant; it is only fetched again when the file changes.
 function setPoster(li, c, trash) {
-  const key = c.poster || '', poster = li.querySelector('.poster');
+  const key = (c.poster || '') + '|' + (state.mediaRev.get(c.poster) || 0), poster = li.querySelector('.poster');
   if (li._pk === key) return; li._pk = key;
   poster.querySelector('img')?.remove(); poster.querySelector('.ph-ic')?.remove();
   if (!c.poster) { poster.prepend(h('span', { class: 'ph-ic' }, icon('film'))); return; }
@@ -298,8 +298,8 @@ function chrome(fm, lv, view, folders, total, inFolder) {
   refs.headSub.textContent = sub;
   refs.langTag.textContent = lv === 'folder' && f?.langName ? f.langName : ''; refs.langTag.hidden = !refs.langTag.textContent;
   // the stream thumbnail behind the heading (a stream page only; fetched like any poster: blob URL, token in the header)
-  const tk = lv === 'folder' && f?.thumb ? f.thumb : '';
-  if (refs.headImg._k !== tk) { refs.headImg._k = tk; refs.head.classList.remove('has-img'); refs.headImg.removeAttribute('src'); if (tk) api.loadImage(refs.headImg, tk).catch(() => {}); }
+  const tk = lv === 'folder' && f?.thumb ? f.thumb + '|' + (state.mediaRev.get(f.thumb) || 0) : '';
+  if (refs.headImg._k !== tk) { refs.headImg._k = tk; refs.head.classList.remove('has-img'); refs.headImg.removeAttribute('src'); if (tk) api.loadImage(refs.headImg, f.thumb).catch(() => {}); }
   if (lv === 'folder') {
     const n = catCounts(inFolder);
     const hadFocus = refs.cats.contains(document.activeElement) ? document.activeElement.dataset.cat : null;

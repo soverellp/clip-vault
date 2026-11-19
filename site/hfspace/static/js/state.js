@@ -8,6 +8,7 @@ export const state = {
   folders: [], folder: null, cat: 'all', variants: new Map(), sortTouched: false, filterOpen: false, homeSort: 'clipped', homeFilter: new Set(), lang: '', libHash: '#/',
   lowPower: false, theme: 'auto', reduced: false,
   audit: null,
+  mediaRev: new Map(),   // repo path -> counter; bumped when a poster/thumbnail file was replaced (live refresh), so the card reloads it
 };
 const subs = {};
 export const on = (ev, fn) => { (subs[ev] ||= new Set()).add(fn); return () => subs[ev].delete(fn); };

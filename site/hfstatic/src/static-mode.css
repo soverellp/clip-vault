@@ -9,3 +9,6 @@ html[data-framed="1"] body{background:var(--bg,#07070d)}
 @media (max-width:560px){.adminbtn{padding-inline:10px;min-width:40px}.adminbtn .lbl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}}
 .remember{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:.9rem;cursor:pointer}
 .remember input{width:18px;height:18px;margin:0}
+.upd-flash{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:60;padding:4px 12px;border-radius:999px;font:600 .78rem/1.4 system-ui,sans-serif;color:var(--text,#fff);background:var(--surface,rgba(30,30,44,.92));border:1px solid var(--line,rgba(255,255,255,.18));opacity:0;pointer-events:none;transition:opacity .25s}
+.upd-flash.show{opacity:.92}
+@media (prefers-reduced-motion:reduce){.upd-flash{transition:none}}

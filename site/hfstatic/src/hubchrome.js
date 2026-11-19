@@ -5,6 +5,7 @@ import * as api from './api.js';
 import { h, btn } from './dom.js';
 import { createModal } from './a11y.js';
 import { toast } from './toast.js';
+import './autorefresh.js';   // live refresh: new clips and edits appear without a reload
 
 const $ = (s, r = document) => r.querySelector(s);
 let adminBtn = null;
