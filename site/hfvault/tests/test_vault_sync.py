@@ -571,3 +571,88 @@ def test_meta_only_token_stays_masked_and_account_token_flag_still_needed(vs, re
     assert rc == 1 and "--allow-account-token" in out.err and ACCT not in out.out + out.err
     rc, out = run(vs, repo, "--meta-only", "--yes", "--allow-account-token", capsys=capsys)
     assert rc == 0 and ACCT not in out.out + out.err
+
+
+# ------------------------------------------------------------------ --refresh-text
+
+def rewrite_kit(repo, stream, cid, suffix="NEW"):
+    d = repo / "streams" / stream / "clips" / cid
+    (d / "post.md").write_text(f"post {suffix} {cid}")
+    (d / "clip.json").write_text(json.dumps({"post": {"youtube": {"tags": [f"tag-{suffix}"]}}}))
+    ip = repo / "streams/index.json"; j = json.loads(ip.read_text())
+    for c in j["clips"]:
+        if c["id"] == cid: c.update(title=f"Title {suffix} {cid}", hook=f"Hook {suffix}", description=f"Desc {suffix}")
+    ip.write_text(json.dumps(j))
+
+
+def test_refresh_text_only_matching_entries_text_fields_change_and_audit_has_names_only(vs, remote, tmp_path, capsys):
+    repo = seed_remote(vs, remote, tmp_path, capsys, [("s1", "c1", b"A" * 100, True), ("s2", "c2", b"B" * 100, False)])
+    idx = remote_index(remote); idx["clips"][0]["rank"] = 7; idx["clips"][0]["group"] = "g"
+    remote.files["index.json"] = json.dumps(idx).encode()
+    rewrite_kit(repo, "s1", "c1"); rewrite_kit(repo, "s2", "c2")
+    before = remote_index(remote); n = len(remote.commits); files = dict(remote.files)
+    rc, out = run(vs, repo, "--refresh-text", "--stream", "s1", "--yes", capsys=capsys)
+    assert rc == 0, out.err
+    assert len(remote.commits) == n + 1
+    after = {c["id"]: c for c in remote_index(remote)["clips"]}; b = {c["id"]: c for c in before["clips"]}
+    assert (after["c1"]["title"], after["c1"]["hook"], after["c1"]["desc"], after["c1"]["post"], after["c1"]["tags"]) == ("Title NEW c1", "Hook NEW", "Desc NEW", "post NEW c1", ["tag-NEW"])
+    assert {k: v for k, v in after["c1"].items() if k not in bh_text} == {k: v for k, v in b["c1"].items() if k not in bh_text}
+    assert after["c2"] == b["c2"]
+    assert all(remote.files[k] == v for k, v in files.items() if not k.startswith("audit") and k != "index.json")
+    audit = "".join(v.decode() for k, v in remote.files.items() if k.startswith("audit"))
+    line = json.loads([x for x in audit.splitlines() if "refresh-text" in x][0])
+    assert line["action"] == "refresh-text" and line["clip_id"] == "c1" and "Title NEW" not in audit and "post NEW" not in audit
+    assert set(line["detail"]["fields"]) == {"title", "hook", "desc", "post", "tags"}
+
+
+bh_text = ("title", "hook", "desc", "post", "tags")
+
+
+def test_refresh_text_dry_run_writes_nothing_and_lists_field_names(vs, remote, tmp_path, capsys):
+    repo = seed_remote(vs, remote, tmp_path, capsys)
+    rewrite_kit(repo, "s1", "c1")
+    n, snap = len(remote.commits), dict(remote.files)
+    rc, out = run(vs, repo, "--refresh-text", capsys=capsys)
+    assert rc == 0 and len(remote.commits) == n and remote.files == snap
+    assert "c1" in out.out and "title" in out.out and "DRY RUN" in out.out and "Title NEW" not in out.out
+
+
+def test_refresh_text_ids_filter_and_identical_text_is_no_change(vs, remote, tmp_path, capsys):
+    repo = seed_remote(vs, remote, tmp_path, capsys)
+    rewrite_kit(repo, "s1", "c1"); rewrite_kit(repo, "s1", "c2")
+    assert run(vs, repo, "--refresh-text", "--ids", "c2", "--yes", capsys=capsys)[0] == 0
+    e = {c["id"]: c for c in remote_index(remote)["clips"]}
+    assert e["c2"]["title"] == "Title NEW c2" and e["c1"]["title"] == "Local title c1"
+    n = len(remote.commits)
+    rc, out = run(vs, repo, "--refresh-text", "--ids", "c2", "--yes", capsys=capsys)
+    assert rc == 2 and len(remote.commits) == n
+
+
+def test_refresh_text_skips_tombstoned_and_trashed(vs, remote, tmp_path, capsys):
+    repo = seed_remote(vs, remote, tmp_path, capsys)
+    idx = remote_index(remote)
+    for c in idx["clips"]:
+        if c["id"] == "c1": c["trashed_at"] = "2026-11-18T00:00:00Z"
+    remote.files["index.json"] = json.dumps(idx).encode()
+    remote.files["tombstones.json"] = json.dumps({"ids": ["c2"]}).encode()
+    rewrite_kit(repo, "s1", "c1"); rewrite_kit(repo, "s1", "c2")
+    n = len(remote.commits)
+    rc, out = run(vs, repo, "--refresh-text", "--yes", capsys=capsys)
+    assert rc == 2 and len(remote.commits) == n
+    assert {c["id"]: c["title"] for c in remote_index(remote)["clips"]}["c1"] == "Local title c1"
+
+
+def test_refresh_text_combines_with_a_changed_video_upload(vs, remote, tmp_path, capsys):
+    repo = seed_remote(vs, remote, tmp_path, capsys)
+    rewrite_kit(repo, "s1", "c1")
+    (repo / "streams/s1/clips/c1/youtube-shorts.mp4").write_bytes(b"NEWV" * 60)
+    rc, out = run(vs, repo, "--refresh-text", "--yes", capsys=capsys)
+    assert rc == 0, out.err
+    e = {c["id"]: c for c in remote_index(remote)["clips"]}["c1"]
+    assert remote.files["clips/c1.mp4"] == b"NEWV" * 60 and e["title"] == "Title NEW c1" and e["sha256"] == sha(b"NEWV" * 60)
+
+
+def test_refresh_text_bad_flag_combinations(vs, remote, tmp_path, capsys):
+    repo = make_repo(tmp_path, [("s1", "c1", b"A" * 100, True)])
+    assert run(vs, repo, "--ids", "c1", capsys=capsys)[0] == 1
+    assert run(vs, repo, "--refresh-text", "--meta-only", capsys=capsys)[0] == 1

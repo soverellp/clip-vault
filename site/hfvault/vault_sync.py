@@ -524,11 +524,109 @@ def run_meta(a, repo, hub):
     return 0
 
 
+# ---------------------------------------------------------------- --refresh-text (post kits rewritten after upload)
+TEXT_FIELDS = ("title", "hook", "desc", "post", "tags")
+
+
+def local_text(repo, c, d):
+    """The text fields of a local clip, derived like build_local does for NEW entries (streams/index.json title/hook/description,
+    post.md, vault_meta hook when the index has none) plus the tags of clip.json post.youtube.tags. Empty values are left out:
+    a field the local clip does not have is never blanked in the vault."""
+    t = {"title": c.get("title"), "hook": c.get("hook") or (meta_for(repo, c["stream"]).get(c["id"]) or {}).get("hook"),
+         "desc": c.get("description")}
+    try: t["post"] = (d / "post.md").read_text()
+    except OSError: pass
+    try:
+        tags = json.loads((d / "clip.json").read_text())["post"]["youtube"]["tags"]
+        if isinstance(tags, list): t["tags"] = [str(x) for x in tags]
+    except Exception: pass
+    return {k: v for k, v in t.items() if v not in (None, "", [])}
+
+
+def plan_text(repo, snap, flt="", ids=None):
+    """-> (rows [(clip id, [fields that differ])], entries {sid: new remote entry}). Only existing, non-tombstoned, non-trashed
+    remote entries that exist locally; only TEXT_FIELDS are overwritten, everything else of the entry stays byte-identical."""
+    rows, entries = [], {}
+    for sid, c in local_entries(repo, flt):
+        if ids is not None and sid not in ids: continue
+        r = snap.by_id.get(sid)
+        if r is None or sid in snap.tomb or r.get("trashed_at"): continue
+        d = repo / "streams" / c["stream"] / "clips" / c["id"]
+        new, changed = dict(r), []
+        for k, v in local_text(repo, c, d).items():
+            if r.get(k) != v or k not in r: new[k] = v; changed.append(k)
+        if changed: entries[sid] = new; rows.append((sid, changed))
+    return rows, entries
+
+
+def commit_text(hub, repo, flt, ids):
+    """ONE commit (index.json + audit line 'refresh-text', field names only), re-planned against a fresh snapshot on every attempt."""
+    last = None
+    for attempt in range(RETRIES + 1):
+        try:
+            snap = take_snapshot(hub)
+            rows, entries = plan_text(repo, snap, flt, ids)
+            if not rows: return None, None, snap
+            at = now_iso()
+            apath = f"{AUDIT_DIR}/{at[:7]}.jsonl"
+            old = hub.read_text(apath, snap.rev) or ""
+            if old and not old.endswith("\n"): old += "\n"
+            audit = "".join(json.dumps({"at": at, "actor": "vault_sync", "actor_email": "vault_sync", "action": "refresh-text", "clip_id": cid,
+                                        "detail": {"fields": ch}}, ensure_ascii=False, separators=(",", ":")) + "\n" for cid, ch in rows)
+            doc = json.dumps(new_index(snap, entries), ensure_ascii=False, indent=1)
+            hub.commit(snap.rev, [], [(INDEX, doc), (apath, old + audit)], "vault_sync: refresh text of " + ", ".join(cid for cid, _ in rows))
+            return rows, entries, snap
+        except Conflict: last = "the dataset changed while uploading (conflict)"
+        except Transient as e: last = f"network error ({e})"
+        if attempt < RETRIES:
+            say(f"  retry {attempt + 1}/{RETRIES} after: {last}")
+            sleep(BACKOFF[min(attempt, len(BACKOFF) - 1)])
+    raise SyncError(f"gave up after {RETRIES + 1} attempts: {last}")
+
+
+def verify_text(hub, entries, before):
+    txt = hub.read_text(INDEX, hub.head())
+    if txt is None: return ["index.json missing after the commit"]
+    got = {bh.safe_id(c["id"]): c for c in parse_remote_index(txt)[1] if "id" in c}
+    bad = [sid for sid, want in entries.items() if got.get(sid) != want]
+    bad += [sid + " (should be untouched)" for sid, c in before.by_id.items() if sid not in entries and got.get(sid) != c]
+    if len(got) != len(before.by_id): bad.append("clip count changed")
+    return bad
+
+
+def run_text(a, repo, hub):
+    """Returns 0 (done / dry run with changes) or 2 (nothing differs)."""
+    ids = {bh.safe_id(x) for x in a.ids.split(",") if x.strip()} if a.ids else None
+    snap = take_snapshot(hub)
+    rows, _ = plan_text(repo, snap, a.stream, ids)
+    if not rows: say("refresh-text: the vault text already matches the local clips"); return 2
+    w = max(len(r[0]) for r in rows)
+    say(f"{'clip'.ljust(w)}  text fields that differ (names only)")
+    for cid, ch in rows: say(f"{cid.ljust(w)}  {', '.join(ch)}")
+    if not a.yes:
+        say(f"refresh-text DRY RUN: nothing was written. {len(rows)} clip(s). Add --yes to overwrite title, hook, desc, post, tags of these entries"); return 0
+    rows, entries, before = commit_text(hub, repo, a.stream, ids)
+    if rows is None: say("refresh-text: nothing to commit any more"); return 2
+    say(f"refresh-text committed: {len(rows)} clip entries, 1 audit line")
+    bad = verify_text(hub, entries, before)
+    if bad: raise SyncError("verify FAILED (read back from the dataset): " + ", ".join(bad[:5]))
+    say("verify ok: text read back matches; every other field and entry unchanged")
+    return 0
+
+
 def run(a):
     repo = Path(a.repo).resolve()
     token = get_credentials(a.dataset, a.from_dir, a.allow_account_token)
     hub = Hub(a.hf_dataset, token)
     if a.meta_only: return run_meta(a, repo, hub)
+    rc = run_sync(a, repo, hub)
+    if not a.refresh_text: return rc
+    if rc == 1: return rc
+    rt = run_text(a, repo, hub)
+    return 0 if 0 in (rc, rt) else 2
+
+
+def run_sync(a, repo, hub):
     snap = take_snapshot(hub)
     say(f"remote {a.hf_dataset}: {len(snap.clips)} clips, {len(snap.tomb)} tombstones" + ("" if snap.raw.get("clips") or snap.files else " (first upload)"))
     locs = local_ids(repo, a.stream)
@@ -581,6 +679,9 @@ def parser():
     p.add_argument("--from-dir", default=None, help="read the credential file from this folder (tests)")
     p.add_argument("--meta-only", action="store_true",
                    help="only merge the Library metadata (vault_meta.json fields, streams[], thumbnails) into the existing remote index (dry run unless --yes)")
+    p.add_argument("--refresh-text", action="store_true",
+                   help="overwrite title, hook, desc, post, tags of EXISTING remote entries from the local clips (dry run unless --yes); nothing else changes")
+    p.add_argument("--ids", default="", help="with --refresh-text: only these clip ids (comma separated)")
     p.add_argument("--allow-account-token", action="store_true",
                    help="knowingly accept the account-wide HF_Token when no dataset-scoped VAULT_WRITE_TOKEN exists (refused otherwise)")
     p.add_argument("--repo", default=str(HERE.parents[1]), help="repo root (tests)")
@@ -599,6 +700,8 @@ def main(argv=None):
         a = parser().parse_args(argv)
         if a.limit is not None and a.limit < 1: raise SyncError("--limit must be 1 or more")
         if a.meta_only and a.limit is not None: raise SyncError("--limit does not apply to --meta-only")
+        if a.refresh_text and a.meta_only: raise SyncError("--refresh-text and --meta-only are separate runs")
+        if a.ids and not a.refresh_text: raise SyncError("--ids only applies to --refresh-text")
         return run(a)
     except SystemExit as e:
         if e.code in (None, 0) or isinstance(e.code, int): return e.code or 0
