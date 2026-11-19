@@ -598,8 +598,8 @@ def test_refresh_text_only_matching_entries_text_fields_change_and_audit_has_nam
     assert (after["c1"]["title"], after["c1"]["hook"], after["c1"]["desc"], after["c1"]["post"], after["c1"]["tags"]) == ("Title NEW c1", "Hook NEW", "Desc NEW", "post NEW c1", ["tag-NEW"])
     assert {k: v for k, v in after["c1"].items() if k not in bh_text} == {k: v for k, v in b["c1"].items() if k not in bh_text}
     assert after["c2"] == b["c2"]
-    assert all(remote.files[k] == v for k, v in files.items() if not k.startswith("audit") and k != "index.json")
-    audit = "".join(v.decode() for k, v in remote.files.items() if k.startswith("audit"))
+    assert all(remote.files[k] == v for k, v in files.items() if not k.startswith("_audit") and k != "index.json")
+    audit = "".join(v.decode() for k, v in remote.files.items() if k.startswith("_audit"))
     line = json.loads([x for x in audit.splitlines() if "refresh-text" in x][0])
     assert line["action"] == "refresh-text" and line["clip_id"] == "c1" and "Title NEW" not in audit and "post NEW" not in audit
     assert set(line["detail"]["fields"]) == {"title", "hook", "desc", "post", "tags"}
@@ -634,7 +634,7 @@ def test_refresh_text_skips_tombstoned_and_trashed(vs, remote, tmp_path, capsys)
     for c in idx["clips"]:
         if c["id"] == "c1": c["trashed_at"] = "2026-11-18T00:00:00Z"
     remote.files["index.json"] = json.dumps(idx).encode()
-    remote.files["tombstones.json"] = json.dumps({"ids": ["c2"]}).encode()
+    remote.files["_config/tombstones.json"] = json.dumps({"ids": ["c2"]}).encode()
     rewrite_kit(repo, "s1", "c1"); rewrite_kit(repo, "s1", "c2")
     n = len(remote.commits)
     rc, out = run(vs, repo, "--refresh-text", "--yes", capsys=capsys)

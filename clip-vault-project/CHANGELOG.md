@@ -2,6 +2,9 @@
 
 > **TL;DR** All dates 2026-11-17, times UTC from `git log` for the older entries. Hashes verified with `git log` in the clipper repo. Add new entries at the TOP. The newest entry below has no hashes: it was written without git access and nothing was committed by the author.
 
+## 2026-11-19 (D42: vault_sync --refresh-text)
+- `site/hfvault/vault_sync.py --refresh-text [--stream] [--ids]`: overwrites title, hook, desc, post, tags of existing entries from the local clips (dry run default, one commit + audit, verify). Docs: VAULT-SYNC, DECISIONS D42. Tests: hfvault pytest 149 (+6).
+
 ## 2026-11-18 (D40: newest clipped first, visible sort, working Filter, language chips)
 - Data: `clipped_at` + `lang` per clip (`vault_meta.json`, filled by NEW `vault_meta.py stamp`), `streams[].clipped_at/lang/lang_name` (`build_hfvault.py`, `vault_sync.py --meta-only`; live index updated in one commit, `check_index.py` verifies). Docs: API-CONTRACT section 0, DATA-MODEL, VAULT-SYNC, DECISIONS D40.
 - UI (`library.js`, `moments.js`, `moments.css`, `hubapi.js` `normalizeStream`): folders newest clipped first (fallback `date`), visible sort control on both screens, Filter works on home (reactions, best picks) and in a stream, language chips (only with 2+ languages), "Clipped 18 Nov, 14:12" on folders and cards, language tag in the stream header.

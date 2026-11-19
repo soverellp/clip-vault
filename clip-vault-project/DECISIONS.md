@@ -8,6 +8,12 @@ Reading guide after D23: D9, D11-D16, D18 and D22 describe the SERVER MODE (save
 
 ---
 
+## D42. `vault_sync.py --refresh-text`: the owner's rewritten post kits reach existing vault entries
+- **Date:** 2026-11-19
+- **Status:** Accepted, built, tested with the fake store (6 new tests, hfvault pytest 149); NOT yet run on the live vault.
+- **Decision:** existing remote entries never got new text because title/hook/desc/post/tags are remote-wins (admin edits). The explicit flag `--refresh-text [--stream S] [--ids a,b]` (dry run unless `--yes`) overwrites exactly those five fields from the local clip, skips trashed/tombstoned/absent clips, writes one commit with an audit line `refresh-text` (field names only), and verifies by read-back. Default sync behaviour is unchanged.
+- **Consequence:** it overwrites admin edits of those fields for the matched clips, so use `--stream`/`--ids` and read the dry run first.
+
 ## D41. Source code is pushed to the main branch of BOTH repos automatically (clipper and clip-vault), with a secret scan
 - **Date:** 2026-11-18
 - **Status:** Accepted (owner: "keep pushing the source code to the GitHub repos main branch"); first push done, see CHANGELOG

@@ -17,6 +17,16 @@ Table columns: id, stream, MB, action, reason. Actions: NEW (not in the remote i
 missing, or remote size differs: video and poster are re-uploaded), FIX (no video upload: backfill a missing sha256 of a v1 entry,
 upload a missing poster), UNCHANGED (hidden from the table, counted in the summary), SKIP (tombstoned, or in the site's trash).
 
+## `--refresh-text`: post kits rewritten after upload
+```
+python3 site/hfvault/vault_sync.py --refresh-text [--stream SUBSTR] [--ids a,b]          # DRY RUN: clip id + names of the differing fields
+python3 site/hfvault/vault_sync.py --refresh-text [--stream SUBSTR] [--ids a,b] --yes    # ONE commit (index.json + audit line), read-back verify
+```
+Overwrites ONLY `title, hook, desc, post, tags` of existing remote entries from the local clip (same derivation as NEW entries: `streams/index.json`
+title/hook/description, `post.md`, hook fallback from `vault_meta.json`; tags from `clip.json` `post.youtube.tags`). A field the local clip has no value for is left alone.
+Skips tombstoned and trashed clips, clips not in the vault, and everything else of every entry (stream, group, variant, reaction, kind, tier, rank, why, clipped_at, lang, files).
+Audit line: action `refresh-text`, per clip the field NAMES only, never the text. Runs after the normal sync in the same command (a CHANGED video is re-uploaded first); exit 2 only when both had nothing to do.
+
 ## `--meta-only`: Library metadata (D39)
 ```
 python3 site/hfvault/vault_sync.py --meta-only [--stream SUBSTR]          # DRY RUN: clips, streams and thumbnails that would change
