@@ -126,6 +126,9 @@ def test_dist_shape(env, tmp_path):
     assert "data:" not in html.split("Content-Security-Policy")[1].split(">")[0]   # img-src data: was unused and is gone
     assert not re.search(r"<script(?![^>]*src=)", html) and "<style" not in html
     assert "/js/hubchrome.js" in html and "/css/static-mode.css" in html
+    ar = (out / "js" / "autorefresh.js").read_text()   # live refresh ships, imported by hubchrome.js, no storage, no innerHTML
+    assert "import './autorefresh.js'" in (out / "js" / "hubchrome.js").read_text() and "no-store" in (out / "js" / "hubapi.js").read_text()
+    assert not re.search(r"localStorage|sessionStorage|innerHTML|indexedDB", ar)
     assert (out / "js" / "api.js").read_text().strip().endswith("export * from './hubapi.js';")
     readme = (out / "README.md").read_text()
     assert readme.startswith("---\n") and "sdk: static" in readme and "app_file: index.html" in readme

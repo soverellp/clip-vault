@@ -45,7 +45,13 @@ Categories: `Streamer reactions` = `kind: reaction`, `Game moments` = `kind: gam
 ## Tests
 - `NODE_PATH=/opt/node22/lib/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node site/hfstatic/tests/test_library.js` (static build + mocked Hub; `SCREENS=1` rewrites `clip-vault-project/screens/*.png`)
 - `site/hfspace/tests/ui/v4.js` (registered from `run.js`): the same screens in server mode against the mock API (`/__ctl library` seeds `fixtures_library.js`)
+- `NODE_PATH=... node site/hfstatic/tests/test_refresh.js`: live refresh (mock Hub).
 - Old tests that used the flat controls call `L.openFilter(p)` first (sort, view, group, queue, stream/tag chips, Select, posting status).
+
+## Live refresh (static mode, no reload)
+`site/hfstatic/src/autorefresh.js`. Check = dataset head sha (`GET /api/datasets/<ds>/revision/main`, no-store); `index.json` is read again only if it changed (if the head call is refused the index is read each time and compared). Every 60 s while visible and unlocked; also on tab visible, window focus and network back; at most one check per 30 s; errors double the wait (max 10 min); no polling while hidden, offline, locked or while an admin commit runs (a read that overlapped a commit is dropped, so the commit parent stays the freshly read head).
+Apply: only when no `dialog[open]` and no video plays (clip view, edit form, post-kit sheet, card sheet, Admin box); otherwise it waits and applies about 1 s after they close. Unchanged clips keep their object, so cards are not rebuilt; folder, category, sort, language, search, scroll and variant are untouched; "Updated" flashes only if data differed. Posters/thumbnails are reloaded only when `poster`, `sha256`, `size` changed (or `updated_at` moved with no text change) or a stream entry changed (`state.mediaRev`, `dropMedia`).
+Test hook: `globalThis.__clipVaultPollMs` (100 to 600000 ms) sets the interval (the 30 s cap becomes half of it).
 
 ## Known limits
 - Proven only with Playwright, fixtures and a mocked Hub. NOT tested: the real 46-clip index, real thumbnails, a real phone, Safari.

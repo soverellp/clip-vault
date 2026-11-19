@@ -10,6 +10,7 @@ The screens are NOT forked. `build_static.py` COPIES `site/hfspace/static/` into
 |---|---|
 | `src/hubapi.js` | the same interface as the server's `api.js` (`MODE = 'static'`), implemented over the Hub HTTP API |
 | `src/hubchrome.js` | runtime chrome: passphrase wording, the Admin button (paste a write token), Lock label |
+| `src/autorefresh.js` | live refresh: head-sha poll about every 60 s, applies new clips and edits without a reload (see UI-LIBRARY.md) |
 | `src/framebust.js`, `src/static-mode.css` | frame-buster (meta CSP cannot set `frame-ancestors`), small CSS |
 | `build_static.py` | builds `dist/` (+ encrypted `config.json`, `README.md` with Space front matter `sdk: static`) |
 | `deploy_static.py` | creates the Static Space and uploads ONLY the allow-listed dist files |

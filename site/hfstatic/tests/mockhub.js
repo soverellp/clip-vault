@@ -41,6 +41,7 @@ class MockHub {
       if (!buf) return route.fulfill({ status: 404, headers: CORS, body: 'not found' });
       return route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'application/octet-stream', 'x-repo-commit': this.head, 'content-length': String(buf.length) }, body: buf });
     }
+    if (p === `/api/datasets/${DS}/revision/main`) { this.headCalls = (this.headCalls || 0) + 1; if (this.failHead) return this.json(route, 500, { error: 'boom' }); }
     if (p === `/api/datasets/${DS}/revision/main`) return this.json(route, 200, { id: DS, sha: this.head });
     if (p === `/api/datasets/${DS}/paths-info/${this.head}` || p.startsWith(`/api/datasets/${DS}/paths-info/`)) {
       const paths = JSON.parse(req.postData() || '{}').paths || [];

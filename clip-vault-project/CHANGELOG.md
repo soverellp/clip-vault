@@ -2,6 +2,12 @@
 
 > **TL;DR** All dates 2026-11-17, times UTC from `git log` for the older entries. Hashes verified with `git log` in the clipper repo. Add new entries at the TOP. The newest entry below has no hashes: it was written without git access and nothing was committed by the author.
 
+## 2026-11-19 (live refresh: the static site updates without a reload)
+- NEW `site/hfstatic/src/autorefresh.js` (loaded by `hubchrome.js`, copied by `build_static.py`): polls the dataset head commit (one small `revision/main` call, `cache:'no-store'`) about every 60 s while the tab is visible and unlocked, again on visible/focus/online, never more than one check per 30 s, exponential back-off on errors, paused while hidden, offline, locked or during an admin commit. `index.json` is re-read only when the head moved.
+- Applies changes in place (`state.clips/folders/trash`, unchanged objects keep identity): folder, category, sort, language filter, search, scroll and chosen variant stay. Nothing is applied while any dialog is open or a video plays (clip view, edit form, post-kit sheet, card sheet); it is applied about 1 s after they close. A tiny "Updated" flash shows only when something changed.
+- `hubapi.js`: `pollHead`, `invalidateSnapshot`, `dropMedia`, `isWriting`, `writeGen` (a poll that overlapped an admin commit is discarded). `state.mediaRev` + `library.js`: a changed poster/thumbnail is fetched again, unchanged blobs are kept.
+- Tests: NEW `site/hfstatic/tests/test_refresh.js` (25 checks, mock Hub: new clip, changed title/desc, state kept, copy gives new text, no update while a clip view/video is open, hidden/locked stop, back-off, focus cap, admin commit not raced, 360 px).
+
 ## 2026-11-19 (D42: vault_sync --refresh-text)
 - `site/hfvault/vault_sync.py --refresh-text [--stream] [--ids]`: overwrites title, hook, desc, post, tags of existing entries from the local clips (dry run default, one commit + audit, verify). Docs: VAULT-SYNC, DECISIONS D42. Tests: hfvault pytest 149 (+6).
 
