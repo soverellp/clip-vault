@@ -155,7 +155,7 @@ def enrich_item(it, vid, now=None):
 
 # ---------------------------------------------------------------- Library metadata (D39): streams[] + per-clip contract fields
 REACTIONS = ("strong", "mild", "none", "unrated")
-VARIANTS = ("with-girl", "clean")
+VARIANTS = ("with-streamer", "with-girl", "clean")
 TIERS = ("A", "B", "C")
 KINDS = ("reaction", "game")
 # every contract field a clip entry may carry (all optional; old clients ignore them)
