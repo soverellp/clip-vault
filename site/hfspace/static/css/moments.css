@@ -137,6 +137,8 @@
 @media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .vpill{background:rgba(26,21,15,.07)}}
 .grid.moments .card.lead .vpill{left:calc(12px + var(--pw) + 14px)}
 .vpill[hidden]{display:none}
+.vpill.v3{grid-template-columns:1.3fr .8fr 1.05fr}
+.vbtn[hidden]{display:none}
 .vbtn{min-height:44px;padding:0 8px;border-radius:21px;border:0;background:transparent;color:var(--muted);font:600 .84rem var(--font);cursor:pointer;white-space:nowrap}
 .vbtn[aria-pressed="true"]{background:var(--gl2);color:var(--text);box-shadow:0 2px 8px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.25)}
 :root[data-theme="light"] .vbtn[aria-pressed="true"]{background:#fff}
@@ -144,7 +146,7 @@
 .vbtn:disabled{opacity:.4;cursor:not-allowed}
 .vbtn:not([aria-pressed="true"]):hover{background:var(--panel-2)}
 .grid.moments.selecting .vpill{display:none}
-@media (max-width:420px){.grid.moments{--pw:100px}.grid.moments .card.lead{--pw:128px}.vbtn{padding:0 6px;font-size:.8rem}}
+@media (max-width:420px){.grid.moments{--pw:100px}.grid.moments .card.lead{--pw:128px}.vbtn{padding:0 6px;font-size:.8rem}.vpill.v3 .vbtn{padding:0 3px;font-size:.72rem}}
 .grid.moments .card-link,.grid.moments .card-in{height:100%}
 @media (min-width:760px){.grid.moments .card.lead .card-in{min-height:260px}.grid.moments .card.lead{--pw:164px}}
 

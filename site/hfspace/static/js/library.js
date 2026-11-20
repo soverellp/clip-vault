@@ -145,12 +145,13 @@ function fillCard(li, m, c, view) {
   q('.mrow').hidden = !fm;
   li.classList.toggle('has-pair', fm && hasPair(m));
   const vp = q('.vpill'); vp.hidden = !(fm && hasPair(m));
-  for (const b of vp.children) { const on_ = b.dataset.variant === variantOf(c); b.setAttribute('aria-pressed', String(on_)); b.disabled = !m.byVariant[b.dataset.variant]; }
-  li.querySelector('.card-link').setAttribute('aria-label', `${titleOf(c)}, ${dur(c.dur)}` + (fm && hasPair(m) && variantOf(c) ? `, ${variantOf(c) === 'clean' ? 'clean' : 'with streamer'} version` : ''));
+  for (const b of vp.children) { const on_ = b.dataset.variant === variantOf(c); b.setAttribute('aria-pressed', String(on_)); b.disabled = !m.byVariant[b.dataset.variant]; b.hidden = b.dataset.variant === 'face-top' && !m.byVariant['face-top']; }  // the third version only shows on moments that have it
+  vp.classList.toggle('v3', !!m.byVariant['face-top']);
+  li.querySelector('.card-link').setAttribute('aria-label', `${titleOf(c)}, ${dur(c.dur)}` + (fm && hasPair(m) && variantOf(c) ? `, ${(VARIANTS.find(x => x[0] === variantOf(c)) || [0, 'with streamer'])[1].toLowerCase()} version` : ''));
 }
 // The small label above a card title: "Top pick" on the lead card of a ranked list, "Best clip" for any other tier A moment, nothing otherwise.
 function setLab(li) { const lab = li.querySelector('.lab'); if (!lab) return; const t = li.classList.contains('lead') ? 'Top pick' : li._tier === 'A' ? 'Best clip' : ''; lab.textContent = t; lab.hidden = !t; }
-// "With streamer | Clean": the card now stands for the other clip of the moment. Play, download, the post kit and Post mode follow it.
+// "With streamer | Clean | Face on top": the card now stands for the other clip of the moment. Play, download, the post kit and Post mode follow it.
 function setVariant(li, v) {
   const m = li._m; if (!m?.byVariant[v] || li._c === m.byVariant[v]) return;
   state.variants.set(m.key, v);

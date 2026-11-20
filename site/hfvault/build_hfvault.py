@@ -26,7 +26,7 @@ from cryptography.hazmat.primitives import hashes
 ITER = 600_000
 HERE = Path(__file__).parent
 REPO = HERE.parents[1]
-PREFER = ["youtube-shorts.mp4", "social.mp4", "clean.mp4", "instagram-reels.mp4"]
+PREFER = ["youtube-shorts.mp4", "social.mp4", "clean.mp4", "instagram-reels.mp4", "facetop.mp4"]
 
 def die(m): sys.exit("error: " + m)
 
@@ -155,7 +155,7 @@ def enrich_item(it, vid, now=None):
 
 # ---------------------------------------------------------------- Library metadata (D39): streams[] + per-clip contract fields
 REACTIONS = ("strong", "mild", "none", "unrated")
-VARIANTS = ("with-streamer", "with-girl", "clean")
+VARIANTS = ("with-streamer", "with-girl", "clean", "face-top")
 TIERS = ("A", "B", "C")
 KINDS = ("reaction", "game")
 # every contract field a clip entry may carry (all optional; old clients ignore them)

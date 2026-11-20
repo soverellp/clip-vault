@@ -1,10 +1,10 @@
-// Moments and folders: pure helpers (no DOM, no network). A moment is one card; its variants (with-streamer / clean) are the same moment cut twice.
+// Moments and folders: pure helpers (no DOM, no network). A moment is one card; its variants (with-streamer / clean / face-top) are the same moment cut up to three times.
 // Everything is optional: a clip without group / variant / reaction / kind / tier is its own moment and the library stays a flat list.
 import { pretty } from './fmt.js';
 
-export const VARIANTS = [['with-streamer', 'With streamer'], ['clean', 'Clean']];
+export const VARIANTS = [['with-streamer', 'With streamer'], ['clean', 'Clean'], ['face-top', 'Face on top']];
 // The stored value is 'with-streamer'; the older 'with-girl' is read as the same variant until the index is migrated.
-export const variantOf = c => (c && (c.variant === 'with-streamer' || c.variant === 'with-girl') ? 'with-streamer' : c && c.variant === 'clean' ? 'clean' : null);
+export const variantOf = c => (c && (c.variant === 'with-streamer' || c.variant === 'with-girl') ? 'with-streamer' : c && c.variant === 'clean' ? 'clean' : c && c.variant === 'face-top' ? 'face-top' : null);
 export const REACTIONS = ['strong', 'mild', 'none', 'unrated'];
 export const CATS = [['reaction', 'Streamer reactions'], ['game', 'Game moments'], ['best', 'Best'], ['all', 'All']];
 const TIER_ORDER = { A: 0, B: 1, C: 2 };
@@ -15,7 +15,7 @@ export const hasNewFields = c => !!c && !!(c.group || c.variant || c.kind || c.t
 // Better first: tier A before B before C before unrated, then the lower rank number, then the higher score.
 export const rankCmp = (a, b) => (TIER_ORDER[tierOf(a)] ?? 3) - (TIER_ORDER[tierOf(b)] ?? 3) || rankNum(a) - rankNum(b) || (Number(b.score) || 0) - (Number(a.score) || 0);
 
-// -> [{ key, group, stream, clips:[...], byVariant:{ 'with-streamer': clip, clean: clip } }] in the order of the first clip of each moment.
+// -> [{ key, group, stream, clips:[...], byVariant:{ 'with-streamer': clip, clean: clip, 'face-top': clip } }] in the order of the first clip of each moment.
 // Only clips that carry a known variant and a group are merged, and only one clip per variant slot; anything else stays a moment of its own.
 export function buildMoments(clips) {
   const out = [], byKey = new Map();
@@ -33,7 +33,7 @@ export function buildMoments(clips) {
 export const hasPair = m => Object.keys(m.byVariant).length > 1;
 // The default variant is "With streamer" when the moment has it, otherwise whatever it has.
 export function pick(m, sel) {
-  return m.byVariant[sel] || m.byVariant['with-streamer'] || m.byVariant.clean || m.clips[0];
+  return m.byVariant[sel] || m.byVariant['with-streamer'] || m.byVariant.clean || m.byVariant['face-top'] || m.clips[0];
 }
 // What a card shows: the selected variant's own fields, filled from the other variant when they are empty.
 export function infoOf(m, rep) {

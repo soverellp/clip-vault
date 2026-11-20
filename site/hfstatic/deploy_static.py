@@ -8,7 +8,9 @@ Environment NAMES read: VAULT_READ_TOKEN, VAULT_PASSPHRASE (build), HF_Token (th
 create/upload the Space). The admin's dataset WRITE token is never used here: it is pasted in the browser when needed.
 Only the files in build_static.DEPLOY_ALLOW are uploaded (never tests, .env, build-info.json or anything else). Prints names only.
 
-Options: --space OWNER/NAME (default Soverellp/clip-vault-site), --dataset, --no-build, --dry-run, --accept-weak-passphrase
+Options: --space OWNER/NAME (default Soverellp/clip-vault-site), --dataset, --no-build, --dry-run, --accept-weak-passphrase,
+--only PATH [PATH ...]  PATCH deploy: upload only these dist files (js/ and css/ files, e.g. js/moments.js), implies --no-build, never config.json
+(the encrypted token / passphrase gate stays exactly as deployed, so no passphrase is needed), nothing is deleted.
 """
 import argparse, os, re, sys
 from pathlib import Path
@@ -42,9 +44,15 @@ def main(argv=None):
     ap.add_argument("--no-build", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--accept-weak-passphrase", action="store_true")
+    ap.add_argument("--only", nargs="+", metavar="PATH", help="patch deploy: upload only these dist files (js/*.js, css/*.css); implies --no-build; config.json is never touched")
     a = ap.parse_args(argv)
     if not re.fullmatch(r"[\w.\-]+/[\w.\-]+", a.space):
         sys.exit("error: --space must look like OWNER/NAME")
+    if a.only:
+        a.no_build = True
+        for f in a.only:
+            if not re.fullmatch(r"(js|css)/[\w.\-]+\.(js|css)", f):
+                sys.exit(f"error: --only takes js/*.js or css/*.css paths relative to dist, got {f!r}")
     if not a.no_build:
         bs.build(a.dist, a.dataset, weak=a.accept_weak_passphrase)
     dist = Path(a.dist)
@@ -54,6 +62,11 @@ def main(argv=None):
     for need in ("index.html", "README.md", "config.json", "js/hubapi.js"):
         if need not in files:
             sys.exit(f"error: {need} would not be uploaded; refusing")
+    if a.only:
+        miss = [f for f in a.only if f not in files]
+        if miss:
+            sys.exit("error: not in the deployable dist files: " + ", ".join(miss))
+        files = sorted(a.only)
     bad = scan_for_secrets(dist, files)
     if bad:
         sys.exit("error: a Hugging Face token pattern was found in: " + ", ".join(bad) + "; nothing uploaded")
@@ -82,8 +95,12 @@ def main(argv=None):
     try:
         # delete_patterns: stale files of an older deploy (a renamed js/*.js, a removed font) are removed in the same commit, but ONLY
         # paths inside the allow-listed set; .gitattributes is always kept by huggingface_hub and anything else in the Space is untouched.
-        api.upload_folder(folder_path=str(dist), repo_id=a.space, repo_type="space", allow_patterns=bs.DEPLOY_ALLOW,
-                          ignore_patterns=IGNORE, delete_patterns=bs.DEPLOY_ALLOW, commit_message="Deploy static Clip Vault")
+        if a.only:  # patch: only the named files, nothing deleted, config.json untouched
+            api.upload_folder(folder_path=str(dist), repo_id=a.space, repo_type="space", allow_patterns=list(a.only), ignore_patterns=IGNORE,
+                              commit_message="Patch static Clip Vault: " + ", ".join(a.only))
+        else:
+            api.upload_folder(folder_path=str(dist), repo_id=a.space, repo_type="space", allow_patterns=bs.DEPLOY_ALLOW,
+                              ignore_patterns=IGNORE, delete_patterns=bs.DEPLOY_ALLOW, commit_message="Deploy static Clip Vault")
     except Exception as e:
         sys.exit(f"error: upload failed ({type(e).__name__}); nothing else was changed")
     owner, _, name = a.space.partition("/")

@@ -16,7 +16,7 @@ const VIDEO_RE = /^clips\/([A-Za-z0-9_.\-]{1,200})\.mp4$/;
 const SAFE = /^(clips\/[\w.\-ऀ-ॿ]{1,200}\.(mp4|jpg|jpeg)|streams\/[A-Za-z0-9_.\-]{1,200}\/thumb\.jpg)$/;   // clip files and stream thumbnails
 const THUMB_RE = /^streams\/[A-Za-z0-9_][A-Za-z0-9_.\-]{0,199}\/thumb\.jpg$/;
 // Moment fields (all optional, see clip-vault-project/UI-LIBRARY.md). Enumerated ones are validated on read and on edit.
-const ENUMS = { reaction: ['strong', 'mild', 'none', 'unrated'], kind: ['reaction', 'game'], tier: ['A', 'B', 'C'], variant: ['with-streamer', 'with-girl', 'clean'] };
+const ENUMS = { reaction: ['strong', 'mild', 'none', 'unrated'], kind: ['reaction', 'game'], tier: ['A', 'B', 'C'], variant: ['with-streamer', 'with-girl', 'clean', 'face-top'] };
 const EDIT_ENUMS = ['reaction', 'kind', 'tier'], EDIT_TEXT = { why: 300, reaction_note: 300 };
 const EDITABLE = new Set([...Object.keys(LIMITS), 'tags', 'posted', 'notes', ...EDIT_ENUMS, ...Object.keys(EDIT_TEXT)]);
 const enc = encodeURIComponent;

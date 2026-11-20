@@ -13,6 +13,11 @@ Back to [README.md](README.md). Added 2026-11-17, redesigned twice the same day 
 - Recommended later: create a dataset-scoped `VAULT_WRITE_TOKEN` (write on `Soverellp/clip-vault` only); then the flag is not needed.
 - Uploaded so far: 28 Kai Cenat clips (14 x `with-girl` and `clean`, about 400 MB) in 10 commits; live site 46 clips / 917 MB, no console errors. NOT proven: phone playback of the new clips; the audio has not been listened to.
 
+## Update 2026-11-20: third version "Face on top" (`variant: face-top`)
+- The Library card has a version pill with up to three buttons: With streamer, Clean, Face on top (the third shows only on moments that have it). Code: `site/hfspace/static/js/moments.js` (VARIANTS), `library.js`, `css/moments.css` (`.vpill.v3`), `site/hfstatic/src/hubapi.js` (ENUMS), `site/hfvault/build_hfvault.py` (VARIANTS); test: `node site/hfspace/tests/test_moments_variants.mjs`.
+- Clips: `facetop.mp4` of the `<start>-<end>s_facetop-<slug>` folders (clips skill, SKILL.md 7e); vault_meta entries use `variant: face-top` with the same `group` as the other two.
+- Site update WITHOUT the passphrase (a full rebuild re-encrypts config.json and needs the real passphrase; it is not in the key dataset): patch deploy of only the changed files, config.json untouched: `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfstatic/deploy_static.py --only js/moments.js js/library.js js/hubapi.js css/moments.css` (copy the changed `hfspace/static` files into `hfstatic/dist/` first, hubapi.js from `hfstatic/src/`).
+
 ## Status 2026-11-18 (D35)
 - **DEPLOYED:** the static page is live at https://soverellp-clip-vault-site.hf.space (Static Space `Soverellp/clip-vault-site`, 50 files), deployed with `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfstatic/deploy_static.py --accept-weak-passphrase`. The user chose a short passphrase and accepted the risk (D26). The passphrase was given in chat for that one command only; it is not in the key dataset. The user should add it to the Claude environment for future deploys (value never written in any file).
 - **PROVEN in a real browser (Playwright, live Space, 390x844):** unlock with the password works; the gallery shows 18 clips / 517 MB; no console errors.
