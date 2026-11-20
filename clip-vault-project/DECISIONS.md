@@ -8,6 +8,15 @@ Reading guide after D23: D9, D11-D16, D18 and D22 describe the SERVER MODE (save
 
 ---
 
+## D43. Shortlist: admin-only star per moment, `_config/shortlist.json`, visible to every friend
+- **Date:** 2026-11-20
+- **Status:** Accepted, built in the static site, tested with the MOCKED Hub only (node pure 12, browser 40, pytest +8); deploy as a `--only` patch; NOT yet run on the live vault or a real phone.
+- **Decision:** the owner can shortlist the clips he likes and wants to post. A star on every card and in the clip detail, a "Shortlisted N" filter chip (combines with the stream, category and version filters) and a "Copy shortlist" button (plain text: title, stream, post caption). The shortlist is per MOMENT: key `<stream>|<group>` for a clip with group and variant (so with-streamer, clean and face-top share one star), else the clip id. Stored in the dataset as `_config/shortlist.json` `{"version":1,"ids":[{"id","at","note?"}]}`; the read-only friends SEE it (star read-only, hint "Admin mode to change"); only admin mode (pasted write token) toggles it.
+- **How it is written:** same commit engine as every admin edit (`setShortlist` in `site/hfstatic/src/hubapi.js`): read the file at the parent revision, change it, commit it with the audit line (`shortlist` / `unshortlist`) in ONE commit, retry on a conflict; an existing file that cannot be parsed FAILS the toggle instead of being overwritten; ids stay deduped (newest 2000 kept). Nothing goes to localStorage; the write token stays in memory.
+- **Stale ids:** ids of deleted or trashed clips stay in the file but are ignored everywhere (chip count, view, copy). Auto-refresh (60 s poll) re-reads the file with the index, so a star set elsewhere shows up without a reload.
+- **Never touched by:** `vault_sync.py` (its `commit` now refuses any path under `_config/`; test), `build_hfvault.py` and `finalise.py` (no write to it; test), `deploy_static.py` (it deploys the Space, not the dataset; `config.json` and the passphrase gate are unchanged).
+- **Scope freeze:** no notes UI (the `note` field exists in the file only), no export, no ordering; new ideas go to the backlog in `PLAN.md`.
+
 ## D42. `vault_sync.py --refresh-text`: the owner's rewritten post kits reach existing vault entries
 - **Date:** 2026-11-19
 - **Status:** Accepted, built, tested with the fake store (6 new tests, hfvault pytest 149); NOT yet run on the live vault.

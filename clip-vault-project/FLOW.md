@@ -147,3 +147,9 @@ Done and tested:
 Not tested yet: admin mode (a real Hub commit and LFS upload from the browser), playing a clip, a real phone, Firefox.
 
 Flow for the next steps: the user tests on a phone; then the code moves to the GitHub repo `soverellp/clip-vault` (D20), once the static site works from clipper.
+
+## S9. Shortlist (2026-11-20, D43)
+1. Admin mode (paste the write token in the browser): tap the star on a card, or the Shortlist button in the clip detail. One commit at the parent revision writes `_config/shortlist.json` plus the audit line (`shortlist` / `unshortlist`).
+2. Friends (read-only token) see the stars read-only (hint "Admin mode to change"), can use the "Shortlisted N" chip and "Copy shortlist" (text: title, stream, post caption). The poll (about 60 s) shows a change made elsewhere.
+3. One star covers every version of a moment (with streamer, clean, face on top). Deleted or trashed clips drop out of the view; their ids are only ignored.
+4. `vault_sync.py`, `build_hfvault.py`, `finalise.py` never write the file. Deploy: `python3 site/hfvault/with_vault_creds.py -- python3 site/hfstatic/deploy_static.py --only js/shortlist.js js/library.js js/drawer.js js/kit.js js/data.js js/main.js js/state.js js/api.js js/hubapi.js js/autorefresh.js css/library.css` (patch, never `config.json`).

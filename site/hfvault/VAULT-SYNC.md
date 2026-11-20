@@ -86,6 +86,12 @@ into NEW entries and prints the hint to run `--meta-only` once for `streams[]` a
 - Ids are the safe id (the stem of `clips/<id>.mp4`). Readers tolerate plain strings in `ids`. `vault_sync` skips tombstoned ids before
   hashing; an unreadable file aborts the sync. Removing an entry by hand (admin) lets the clip be synced again.
 
+## Shortlist file (`_config/shortlist.json`, owned by the site)
+```
+{"version": 1, "ids": [{"id": "<stream>|<group>  or a clip id>", "at": "2026-11-20T10:00:00Z", "note": "optional"}]}
+```
+- Written ONLY by the static site in admin mode (`setShortlist` in `site/hfstatic/src/hubapi.js`), in the same commit as its audit line. `vault_sync.py` never writes, replaces or deletes it (its `commit` refuses any `_config/` path); ids of deleted or trashed clips may stay in it and are ignored by readers.
+
 ## Failure modes
 | Message (stderr) | Cause and fix |
 |---|---|

@@ -13,6 +13,9 @@ Back to [README.md](README.md). Added 2026-11-17, redesigned twice the same day 
 - Recommended later: create a dataset-scoped `VAULT_WRITE_TOKEN` (write on `Soverellp/clip-vault` only); then the flag is not needed.
 - Uploaded so far: 28 Kai Cenat clips (14 x `with-girl` and `clean`, about 400 MB) in 10 commits; live site 46 clips / 917 MB, no console errors. NOT proven: phone playback of the new clips; the audio has not been listened to.
 
+## Update 2026-11-20: shortlist (D43)
+- Star on every card and in the clip detail (admin mode toggles; friends see it read-only), chip "Shortlisted N", button "Copy shortlist". Per moment. File `_config/shortlist.json` in the dataset, never touched by sync or build scripts. Code: `site/hfspace/static/js/shortlist.js` (pure), `kit.js`, `library.js`, `drawer.js`, `site/hfstatic/src/hubapi.js`; tests: `site/hfstatic/tests/test_shortlist_logic.mjs`, `test_shortlist.js`, `test_vault_sync.py`.
+
 ## Update 2026-11-20: third version "Face on top" (`variant: face-top`)
 - The Library card has a version pill with up to three buttons: With streamer, Clean, Face on top (the third shows only on moments that have it). Code: `site/hfspace/static/js/moments.js` (VARIANTS), `library.js`, `css/moments.css` (`.vpill.v3`), `site/hfstatic/src/hubapi.js` (ENUMS), `site/hfvault/build_hfvault.py` (VARIANTS); test: `node site/hfspace/tests/test_moments_variants.mjs`.
 - Clips: `facetop.mp4` of the `<start>-<end>s_facetop-<slug>` folders (clips skill, SKILL.md 7e); vault_meta entries use `variant: face-top` with the same `group` as the other two.
