@@ -314,21 +314,51 @@ def test_shortlist_ships_and_both_api_modes_export_it(env, tmp_path):
     assert bs.forbidden_hit("hubapi.js", (out / "js" / "hubapi.js").read_text()) is None  # still no storage API, no innerHTML
 
 
-def test_shortlist_write_goes_through_the_admin_commit_path_only():
+def test_shortlist_write_uses_the_shortlist_token_and_its_own_commit_path():
     src = (bs.HERE / "src" / "hubapi.js").read_text()
     body = src.split("export async function setShortlist", 1)[1].split("export async function patchClip", 1)[0]
-    assert "requireAdmin()" in body and "transact(" in body and "parseShortlistStrict" in body       # admin only, parent revision, unreadable file fails
-    assert "action: on ? 'shortlist' : 'unshortlist'" in body                                      # audit line in the same commit
+    assert "requireAdmin()" not in body and "writeToken" not in body            # no admin mode needed, never the admin write token
+    assert "token: slToken" in body and "cfg.sl.dataset" in body and "parentCommit: rev" in body and "parseShortlistStrict" in body
+    assert "action: on ? 'shortlist' : 'unshortlist'" in body                   # audit line in the same commit
+    assert "token: readToken" not in body and "token: writeToken" not in body
     assert "localStorage" not in src and "sessionStorage" not in src
 
 
-def test_config_json_and_the_passphrase_gate_do_not_know_the_shortlist(env, tmp_path):
+def test_config_carries_the_shortlist_token_only_encrypted(env, tmp_path):
+    e = dict(env, VAULT_SHORTLIST_TOKEN="hf_" + "S" * 30)
+    out, _ = bs.build(tmp_path / "d", env=e)
+    raw = (out / "config.json").read_text()
+    cfg = json.loads(raw)
+    assert set(cfg) == {"v", "dataset", "iter", "salt", "iv", "token", "sl"} and set(cfg["sl"]) == {"dataset", "path", "iv", "token"}
+    assert e["VAULT_SHORTLIST_TOKEN"] not in raw and e["VAULT_READ_TOKEN"] not in raw
+    assert bs.decrypt_token(cfg, e["VAULT_PASSPHRASE"]) == e["VAULT_READ_TOKEN"]
+    assert bs.decrypt_shortlist_token(cfg, e["VAULT_PASSPHRASE"]) == e["VAULT_SHORTLIST_TOKEN"]
+    with pytest.raises(Exception):
+        bs.decrypt_shortlist_token(cfg, "wrong wrong wrong wrong words")
+    assert cfg["sl"]["iv"] != cfg["iv"]                                          # never reuse an iv under the same key
+
+
+def test_config_without_a_shortlist_token_is_unchanged(env, tmp_path):
     out, _ = bs.build(tmp_path / "d", env=env)
-    assert "shortlist" not in (out / "config.json").read_text().lower()
     assert set(json.loads((out / "config.json").read_text())) == {"v", "dataset", "iter", "salt", "iv", "token"}
+
+
+def test_shortlist_token_must_differ_from_the_read_token(env, tmp_path):
+    with pytest.raises(SystemExit):
+        bs.build(tmp_path / "d", env=dict(env, VAULT_SHORTLIST_TOKEN=env["VAULT_READ_TOKEN"]))
 
 
 def test_python_uploaders_never_write_the_shortlist_file():
     for rel in ("site/hfvault/build_hfvault.py", ".claude/skills/clips/scripts/finalise.py"):
         txt = (bs.REPO / rel).read_text()
         assert "shortlist" not in txt.lower() and "_config/" not in txt, rel
+
+
+def test_deploy_verify_decrypt_passes_with_the_right_passphrase_and_fails_with_a_wrong_one(env, tmp_path, monkeypatch):
+    e = dict(env, VAULT_SHORTLIST_TOKEN="hf_" + "S" * 30)
+    out, _ = bs.build(tmp_path / "d", env=e)
+    for k, v in e.items():
+        monkeypatch.setenv(k, v)
+    assert ds.verify_config(out) is True
+    monkeypatch.setenv("VAULT_PASSPHRASE", "totally different words here now")
+    assert ds.verify_config(out) is False
