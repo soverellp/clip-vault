@@ -8,7 +8,8 @@ import { dur, human, scoreText, pretty, norm, titleOf, tagsOf } from './fmt.js';
 import * as hero from './hero3d.js';
 import { announce, haptic } from './a11y.js';
 import { openPalette } from './palette.js';
-import { chips, postState, openCardSheet, startPost, downloadAll } from './kit.js';
+import { chips, postState, openCardSheet, startPost, downloadAll, canShortlist, shortlisted, shortlistCount, toggleShortlist, copyShortlist, SHL_HINT } from './kit.js';
+import { keySet, momentKey } from './shortlist.js';
 import * as motion from './kit.js';
 
 const DAY = 864e5;
@@ -40,8 +41,10 @@ export function visible(view = state.view) {
   const q = norm(state.q).split(/\s+/).filter(Boolean);
   const thr = view === 'library' && state.queue === 'best' ? bestThreshold() : 0;
   const langBy = view === 'library' && state.lang && level(view) !== 'folder' ? langStats(state.clips, state.folders).by : null;
+  const shl = view === 'library' && state.shortlistOnly ? keySet(state.shortlist) : null;
   let list = listFor(view).filter(c => {
     if (view === 'library') {
+      if (shl && !shl.has(momentKey(c))) return false;
       if (langBy && langOfClip(c, langBy) !== state.lang) return false;
       if (state.queue === 'ready' && postState(c) !== 'none') return false;
       if (state.queue === 'best' && !(hasScore(c) && +c.score >= thr)) return false;
@@ -84,6 +87,7 @@ function makeCard(m, view) {
   const acc = accentFor(c.id); if (acc) li.style.setProperty('--ac-rgb', rgbVar(acc));
   const chk = h('button', { type: 'button', class: 'check', role: 'checkbox', 'aria-checked': 'false', 'aria-label': 'Select clip', on: { click: e => { e.preventDefault(); toggleSel(li); } } }, icon('check'));
   li.append(chk);
+  if (!trash) li.append(h('button', { type: 'button', class: 'shl', 'aria-pressed': 'false', hidden: true, on: { click: e => { e.preventDefault(); e.stopPropagation(); toggleShortlist(li._c || c); } } }, icon('star')));
   if (!trash) li.append(h('button', { type: 'button', class: 'card-more', 'aria-haspopup': 'dialog', on: { click: e => { e.preventDefault(); e.stopPropagation(); openCardSheet(li._c || c, { opener: e.currentTarget }); } } }, icon('dots')));
   li.append(h('div', { class: 'vpill', role: 'group', 'aria-label': 'Version', hidden: true }, ...VARIANTS.map(([v, label]) =>
     h('button', { type: 'button', class: 'vbtn', 'data-variant': v, 'aria-pressed': 'false', text: label, on: { click: e => { e.preventDefault(); e.stopPropagation(); setVariant(li, v); } } }))));
@@ -94,6 +98,17 @@ function makeCard(m, view) {
   }
   fillCard(li, m, c, view);
   return li;
+}
+// The shortlist star: a button for admin mode, a read-only mark for everyone else (and only on shortlisted moments); hidden in the trash.
+function paintShl(li, c, view) {
+  const b = li.querySelector('.shl'); if (!b) return;
+  const on_ = view === 'library' && shortlisted(c), can = canShortlist();
+  b.hidden = view !== 'library' || !(on_ || can);
+  b.setAttribute('aria-pressed', String(on_)); b.classList.toggle('on', on_); b.classList.toggle('ro', !can);
+  b.setAttribute('aria-disabled', String(!can));
+  const t = titleOf(c);
+  b.setAttribute('aria-label', can ? (on_ ? `Remove ${t} from the shortlist` : `Add ${t} to the shortlist`) : `${on_ ? 'Shortlisted' : 'Not shortlisted'}: ${t}. ${SHL_HINT}`);
+  b.title = can ? (on_ ? 'Shortlisted. Click to remove' : 'Add to the shortlist') : (on_ ? 'Shortlisted. ' : '') + SHL_HINT;
 }
 // The poster follows the selected variant; it is only fetched again when the file changes.
 function setPoster(li, c, trash) {
@@ -125,6 +140,7 @@ function fillCard(li, m, c, view) {
   if (sc) sb.style.setProperty('--pct', String(Math.round(Math.min(100, Number(c.score) <= 10 ? Number(c.score) * 10 : Number(c.score)))));
   q('.ribbon').hidden = !(view === 'library' && isNew(c));
   const pc = q('.pc'); if (pc) { pc.replaceChildren(view === 'library' ? chips(c) : ''); pc.hidden = view !== 'library'; }
+  paintShl(li, c, view);
   const mb = li.querySelector('.card-more'); if (mb) mb.setAttribute('aria-label', `More actions for ${titleOf(c)}`);
   q('.stream').textContent = pretty(c.stream); q('.size').textContent = human(c.size);
   const when = q('.when');
@@ -268,7 +284,7 @@ export function update({ flip = true } = {}) {
 // Home filters (folders): D40. A folder stays when ALL ticked options hold for at least one of its clips.
 export const HOME_FILTERS = [['reaction', 'Has streamer reactions', c => c.kind === 'reaction'], ['best', 'Has best picks', c => tierOf(c) === 'A']];
 const homeKeep = f => [...state.homeFilter].every(k => f.clips.some(HOME_FILTERS.find(x => x[0] === k)?.[2] || (() => true)));
-const hasFilters = () => !!(state.lang || state.homeFilter.size || state.streams.size || state.tags.size || state.minScore || state.post !== 'any' || state.queue !== 'all');
+const hasFilters = () => !!(state.shortlistOnly || state.lang || state.homeFilter.size || state.streams.size || state.tags.size || state.minScore || state.post !== 'any' || state.queue !== 'all');
 const plural = (n, w) => `${n} ${n === 1 ? w : w + 's'}`;
 // Everything that depends on the screen: which controls exist, the page heading, the category row, the Post mode button's place.
 function chrome(fm, lv, view, folders, total, inFolder) {
@@ -375,7 +391,7 @@ function emptyState(kind, title, text, action) {
   refs.empty.hidden = false;
   refs.empty.append(h('img', { class: 'empty-art', src: `/assets/empty-${kind}.svg`, alt: '', width: 200, height: 160 }), h('h3', { text: title }), h('p', { text }), action);
 }
-export function clearFilters() { state.lang = ''; state.homeFilter.clear(); state.cat = 'all'; state.streams.clear(); state.tags.clear(); state.minScore = 0; state.q = ''; state.queue = 'all'; state.post = 'any'; refs.postF.value = 'any'; refs.q.value = ''; refs.score.value = '0'; refs.scoreVal.textContent = 'Any'; emit('filters'); update(); }
+export function clearFilters() { state.shortlistOnly = false; state.lang = ''; state.homeFilter.clear(); state.cat = 'all'; state.streams.clear(); state.tags.clear(); state.minScore = 0; state.q = ''; state.queue = 'all'; state.post = 'any'; refs.postF.value = 'any'; refs.q.value = ''; refs.score.value = '0'; refs.scoreVal.textContent = 'Any'; emit('filters'); update(); }
 
 const QUEUES = [['all', 'All'], ['ready', 'Ready to post'], ['best', 'Best clips'], ['new', 'New']];
 function updateQueue() {
@@ -390,8 +406,15 @@ function updateQueue() {
   const nf = state.homeFilter.size + state.streams.size + state.tags.size + (state.minScore > 0 ? 1 : 0) + (state.post !== 'any' ? 1 : 0) + (state.queue !== 'all' && !fmNow ? 1 : 0);
   refs.filterN.textContent = String(nf); refs.filterN.hidden = !nf; refs.filterBtn.setAttribute('aria-label', nf ? `Filter, ${nf} active` : 'Filter');
 }
+// "Shortlisted N" filter chip (combines with every other filter) and "Copy shortlist". Shown when something is shortlisted, the filter is on, or admin mode can star.
+function updateShortlistBar() {
+  const n = shortlistCount(), show = state.view === 'library' && (n > 0 || state.shortlistOnly || canShortlist());
+  refs.shlRow.hidden = !show;
+  const chip = refs.shlChip; chip.setAttribute('aria-pressed', String(state.shortlistOnly)); chip.classList.toggle('on', state.shortlistOnly);
+  chip.querySelector('.n').textContent = String(n); refs.shlCopy.disabled = n === 0;
+}
 function updateChips() {
-  updateQueue();
+  updateQueue(); updateShortlistBar();
   const lib = listFor('library');
   const streams = new Map(), tags = new Map();
   for (const c of lib) { const s = c.stream ?? ''; streams.set(s, (streams.get(s) || 0) + 1); for (const t of tagsOf(c)) tags.set(t, (tags.get(t) || 0) + 1); }
@@ -461,6 +484,9 @@ export function build(root) {
   const postF = h('select', { id: 'postfilter', 'aria-label': 'Posting status', on: { change: e => { state.post = e.target.value; update(); } } },
     ...[['any', 'Any posting status'], ['none', 'Not posted anywhere'], ['yt', 'Posted on YouTube only'], ['ig', 'Posted on Instagram only'], ['both', 'Posted on both']].map(([v, l]) => h('option', { value: v, text: l })));
   const groupB = btn('Group', { ic: 'layers', kind: 'ghost', cls: 'group-btn', on: () => { state.group = !state.group; update(); announce(state.group ? 'Grouped by stream' : 'Ungrouped'); } }); groupB.id = 'group-btn'; groupB.setAttribute('aria-pressed', 'false');
+  const shlChip = h('button', { type: 'button', class: 'chip shl-chip', id: 'shl-chip', 'aria-pressed': 'false', on: { click: () => { state.shortlistOnly = !state.shortlistOnly; update({ flip: false }); announce(`Shortlisted: ${state.shortlistOnly ? 'on' : 'off'}, ${shortlistCount()} moments`); } } }, icon('star'), h('span', { class: 'lbl', text: 'Shortlisted' }), h('span', { class: 'n', text: '0' }));
+  const shlCopy = btn('Copy shortlist', { ic: 'copy', kind: 'ghost', cls: 'sm shl-copy', on: e => copyShortlist(e.currentTarget) }); shlCopy.id = 'shl-copy';
+  const shlRow = h('div', { class: 'shl-row', role: 'group', 'aria-label': 'Shortlist', hidden: true }, shlChip, shlCopy);
   const tabsEl = h('nav', { class: 'tabs', 'aria-label': 'Sections', hidden: true });
   const filterN = h('span', { class: 'n', hidden: true, 'aria-hidden': 'true' });
   const filterBtn = h('button', { type: 'button', id: 'filter-btn', class: 'btn filter-btn', 'aria-expanded': String(state.filterOpen), 'aria-controls': 'filter-panel', on: { click: () => setFilterOpen(!state.filterOpen) } }, icon('layers'), h('span', { class: 'lbl', text: 'Filter' }), filterN);
@@ -489,8 +515,8 @@ export function build(root) {
   const cats = h('div', { class: 'cats', role: 'group', 'aria-label': 'Categories', hidden: true });
   const fgrid = h('ul', { class: 'folder-grid', 'aria-label': 'Streams', hidden: true });
   const panel = h('section', { class: 'filter-panel', id: 'filter-panel', 'aria-label': 'Filters', hidden: !state.filterOpen }, homeF, toolRow, qseg, streams, moreF);
-  root.append(heroEl, tabsEl, head, tools, vsort, langbar, panel, trashBar, count, cats, skel, fgrid, grid, empty);
-  refs = { vsort, langbar, homeF, sortWrap, langTag, root, headImg, grid, fgrid, cats, head, back, headTitle, headSub, panel, filterBtn, filterN, postBtn, postSlot, heroCta, seg, toolRow, skel, empty, count, q, streams, tags: moreF.querySelector('#tagchips'), moreF, score, scoreVal, modeG, modeL, selBtn, tabs: tabsEl, hero: heroEl, tools, trashBar, stClips, stTime, stSize, stReady, sort, qseg, postF, groupB };
+  root.append(heroEl, tabsEl, head, tools, vsort, langbar, shlRow, panel, trashBar, count, cats, skel, fgrid, grid, empty);
+  refs = { shlRow, shlChip, shlCopy, vsort, langbar, homeF, sortWrap, langTag, root, headImg, grid, fgrid, cats, head, back, headTitle, headSub, panel, filterBtn, filterN, postBtn, postSlot, heroCta, seg, toolRow, skel, empty, count, q, streams, tags: moreF.querySelector('#tagchips'), moreF, score, scoreVal, modeG, modeL, selBtn, tabs: tabsEl, hero: heroEl, tools, trashBar, stClips, stTime, stSize, stReady, sort, qseg, postF, groupB };
 
   io = new IntersectionObserver(es => {
     for (const e of es) if (e.isIntersecting) {
@@ -522,7 +548,7 @@ export function build(root) {
   const cancelLp = () => { clearTimeout(lpT); lp = null; };
   const quick = (li, why) => { if (!li?._c || li.dataset.view === 'trash' || state.selecting) return; suppress = true; setTimeout(() => { suppress = false; }, 800); haptic(15); openCardSheet(li._c, { opener: li.querySelector('.card-link') }); };
   grid.addEventListener('pointerdown', e => {
-    if (e.button !== 0 || state.selecting || e.target.closest('.card-more,.check,.card-actions,.group-head,.vpill')) return;
+    if (e.button !== 0 || state.selecting || e.target.closest('.card-more,.check,.card-actions,.group-head,.vpill,.shl')) return;
     const li = e.target.closest('.card'); if (!li) return;
     lp = { x: e.clientX, y: e.clientY }; clearTimeout(lpT); lpT = setTimeout(() => { if (lp) { lp = null; quick(li); } }, 520);
   });

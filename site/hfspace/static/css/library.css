@@ -222,3 +222,18 @@ html[data-motion="reduced"] .poster img,html[data-lowpower="true"] .poster img{a
 .stats b{display:block;min-width:3.2ch}
 
 .bulkbar{z-index:75}
+/* shortlist: star on a card (button in admin mode, read-only mark otherwise), filter chip row, drawer button */
+.shl{position:absolute;right:2px;top:44px;z-index:3;width:44px;height:44px;border:0;background:transparent;color:#fff;display:grid;place-items:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.shl[hidden]{display:none}
+.shl::before{content:'';position:absolute;width:30px;height:30px;border-radius:50%;background:rgba(8,8,16,.62);border:1px solid rgba(255,255,255,.28)}
+.shl .ic{position:relative;width:17px;height:17px}
+.shl.on{color:#ffd24a}.shl.on .ic{fill:currentColor}
+.shl.ro{cursor:default}
+.shl-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0 2px;padding:2px}
+.shl-row[hidden]{display:none}
+.shl-chip .ic{width:16px;height:16px}
+.shl-chip.on .ic{fill:currentColor}
+.shl-copy:disabled{opacity:.5;cursor:default}
+.dbar .shl-btn.on{border-color:#ffd24a;color:#ffd24a}.dbar .shl-btn.on .ic{fill:currentColor}
+.dbar .shl-btn[aria-disabled="true"]{cursor:default;opacity:.85}
+.shl-hint{align-self:center;font-size:.78rem;color:var(--muted)}.shl-hint:empty{display:none}

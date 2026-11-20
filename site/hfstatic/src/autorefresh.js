@@ -38,14 +38,15 @@ async function fetchAndApply() {
   const gen = api.writeGen();
   api.invalidateSnapshot();
   const wantTrash = state.me?.role === 'admin' && state.trashLoaded;
-  const [r, st, tr] = await Promise.all([api.listClips(), api.listStreams().catch(() => null), wantTrash ? api.listClips({ trash: true }).catch(() => null) : null]);
+  const [r, st, tr, sl] = await Promise.all([api.listClips(), api.listStreams().catch(() => null), wantTrash ? api.listClips({ trash: true }).catch(() => null) : null, api.listShortlist().catch(() => null)]);
   if (api.isWriting() || gen !== api.writeGen() || busy() || !state.me) return 'raced';
   const nc = clean(r?.clips), nt = tr ? clean(tr.clips) : null;
   const nf = Array.isArray(st?.streams) ? st.streams.filter(x => x && typeof x.id === 'string') : null;
   const drop = [], bump = p => { if (p) { drop.push(p); state.mediaRev.set(p, (state.mediaRev.get(p) || 0) + 1); } };
   const oldAll = new Map([...state.clips, ...state.trash].map(c => [c.id, c]));
   for (const c of [...nc, ...(nt || [])]) { const o = oldAll.get(c.id); if (o && c.poster && mediaChanged(o, c)) bump(c.poster); }
-  let changed = !same(state.clips, nc) || (nt && !same(state.trash, nt)) || (nf && !same(state.folders, nf));
+  const ns = Array.isArray(sl?.ids) ? sl.ids : null;
+  let changed = !same(state.clips, nc) || (nt && !same(state.trash, nt)) || (nf && !same(state.folders, nf)) || (ns && !same(state.shortlist, ns));
   if (nf) { const oldF = new Map(state.folders.map(f => [f.id, f])); for (const f of nf) { const o = oldF.get(f.id); if (o && f.thumb && !same(o, f)) bump(f.thumb); } }
   if (!changed) return 'same';
   api.dropMedia?.(drop);
@@ -53,6 +54,7 @@ async function fetchAndApply() {
   state.clips = keep(state.clips, nc);
   if (nt) state.trash = keep(state.trash, nt);
   if (nf) state.folders = keep(state.folders, nf);
+  if (ns) state.shortlist = ns;
   if (r?.counts) state.counts = { ...state.counts, ...r.counts };
   emit('clips');
   requestAnimationFrame(() => { if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y); });

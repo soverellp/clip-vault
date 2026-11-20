@@ -7,6 +7,8 @@ import { haptic, announce } from './a11y.js';
 import { parsePost, LIMITS } from './post.js';
 import { titleOf, tagsOf } from './fmt.js';
 import { exact, parse } from './time.js';
+import { momentKey, isShortlisted, liveKeys, shortlistText } from './shortlist.js';
+import { pretty } from './fmt.js';
 
 // Copy text. `src` (optional) is the button that gets the flash animation. Works inside open modal dialogs (the fallback textarea goes into the top dialog).
 export async function copyText(text, what = 'Copied', src) {
@@ -176,3 +178,27 @@ export const startPost = (...a) => loadPostMode().then(m => m.startPost(...a));
 export const openCardSheet = (...a) => load(() => import('./sheet.js')).then(m => m.openCardSheet(...a));
 export const downloadAll = (...a) => load(() => import('./sheet.js')).then(() => import('./dlqueue.js')).then(m => m.downloadAll(...a));
 export const openShortcuts = () => load(() => import('./shortcuts.js')).then(m => m.openShortcuts());
+
+// ---- shortlist (per moment; everyone sees it, only admin mode with the write token can change it)
+export const SHL_HINT = 'Admin mode to change';
+export const canShortlist = () => state.me?.role === 'admin' && state.me?.can_write === true && state.me?.capabilities?.shortlist === true;
+export const shortlisted = c => isShortlisted(state.shortlist, c);
+export const shortlistCount = () => liveKeys(state.shortlist, state.clips).size;
+const shlBusy = new Set();
+export async function toggleShortlist(c) {
+  if (!canShortlist()) { toast(SHL_HINT + ' (open Admin and paste the write token).'); return false; }
+  const key = momentKey(c); if (shlBusy.has(key)) return false;
+  const on = !shortlisted(c); shlBusy.add(key);
+  try {
+    const r = await api.setShortlist(key, on);
+    if (Array.isArray(r?.ids)) state.shortlist = r.ids;
+    emit('clips'); announce(on ? 'Added to the shortlist' : 'Removed from the shortlist'); toast(on ? 'Shortlisted' : 'Removed from the shortlist');
+    return true;
+  } catch (e) { toast(api.errorText(e), { kind: 'error' }); return false; }
+  finally { shlBusy.delete(key); }
+}
+export function copyShortlist(src) {
+  const text = shortlistText(state.shortlist, state.clips, { pretty, title: titleOf });
+  if (!text) { toast('Nothing is shortlisted yet.'); return; }
+  return copyText(text, `Copied ${shortlistCount()} shortlisted`, src);
+}

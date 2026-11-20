@@ -75,6 +75,9 @@ export const restoreClip = id => post(`/api/clips/${enc(id)}/restore`, {});
 export const deleteClip = (id, confirmTitle) => del(`/api/clips/${enc(id)}`, { confirm: confirmTitle });
 export const emptyTrash = ({ all = false } = {}) => post('/api/trash/empty', all ? { all: true, confirm: 'EMPTY TRASH' } : { confirm: 'EMPTY TRASH' });
 export const audit = () => get('/api/audit');
+// Shortlist (static mode only: _config/shortlist.json in the dataset). Server mode has none: an empty read-only list.
+export const listShortlist = async () => ({ ids: [], can_write: false });
+export const setShortlist = async () => { throw new ApiError(400, { error: 'unsupported', message: 'The shortlist is not available in server mode.' }); };
 
 // multipart upload with progress. onProgress({loaded,total}); signal aborts (rejects with AbortError). Resolves with the JSON body (201).
 export function uploadClip(form, { onProgress, signal } = {}) {

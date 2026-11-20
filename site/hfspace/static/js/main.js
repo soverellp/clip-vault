@@ -64,7 +64,7 @@ function showSignin(msg) {
   for (const d of document.querySelectorAll('dialog[open]')) d.close();
   document.body.classList.remove('locked');
   shell.hidden = true; signin.hidden = false; $('#boot')?.remove();
-  state.me = null; state.clips = []; state.trash = []; state.folders = []; state.folder = null; state.cat = 'all'; state.lang = ''; state.homeFilter.clear(); state.libHash = '#/'; state.loaded = false; state.trashLoaded = false; state.selecting = false; state.selected.clear();
+  state.me = null; state.clips = []; state.trash = []; state.folders = []; state.folder = null; state.cat = 'all'; state.lang = ''; state.homeFilter.clear(); state.libHash = '#/'; state.loaded = false; state.trashLoaded = false; state.selecting = false; state.selected.clear(); state.shortlist = []; state.shortlistOnly = false;
   lib.resetCards(); hero.setPosters([]);
   hero.mount(signin); document.title = 'Sign in - Clip Vault';
   if (location.hash) history.replaceState(null, '', location.pathname);

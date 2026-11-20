@@ -3,6 +3,7 @@
 //   admin : a fine-grained WRITE token pasted by the admin (memory only) -> Hub commit API (+ LFS) from the browser
 // Exports the same names as site/hfspace/static/js/api.js (the build checks this). Nothing is ever put in storage.
 import { state, emit } from './state.js';
+import { parseShortlist, parseShortlistStrict, serializeShortlist, toggleEntry } from './shortlist.js';
 
 export const MODE = 'static';
 const HUB = 'https://huggingface.co';
@@ -92,7 +93,7 @@ export async function me() {
   if (!readToken) throw new ApiError(401, { error: 'unauthorized' });
   const admin = !!writeToken;
   return { role: admin ? 'admin' : 'viewer', name: admin ? 'Admin' : 'Viewer', email: '', picture: '', csrf: '', root: false, sub: '', can_write: admin,
-    capabilities: { users: false, trash: admin, audit: admin, upload: admin, delete: admin, moments: admin }, mode: 'static', dataset: cfg?.dataset };
+    capabilities: { users: false, trash: admin, audit: admin, upload: admin, delete: admin, moments: admin, shortlist: admin }, mode: 'static', dataset: cfg?.dataset };
 }
 
 // ------------------------------------------------------------------ Hub plumbing
@@ -514,6 +515,32 @@ function cleanPosted(v, cur) {
   return out;
 }
 const validId = id => { if (typeof id !== 'string' || !ID_RE.test(id) || id.includes('..')) throw new ApiError(404, { error: 'not_found' }); };
+
+// ------------------------------------------------------------------ shortlist (_config/shortlist.json; everyone reads it, only admin mode writes it)
+const SHORTLIST = '_config/shortlist.json';
+// -> { ids: [{id, at, note?}], can_write }. A missing or unreadable file reads as an empty shortlist (a read never fails the page).
+export async function listShortlist() {
+  if (!readToken) throw new ApiError(401, { error: 'unauthorized' });
+  const snap = await snapshot();
+  snap.shortlistP ||= readText(SHORTLIST, snap.rev).then(t => parseShortlist(t || ''));
+  return { ids: await snap.shortlistP, can_write: !!writeToken };
+}
+// Add or remove ONE moment key. Same commit mechanism as every admin edit: the file is read at the parent revision, changed, committed with an
+// audit line; an unreadable existing file fails the call instead of being overwritten. Ids stay deduped. -> { ok, ids }
+export async function setShortlist(key, on, note) {
+  requireAdmin();
+  if (typeof key !== 'string' || !key || key.length > 300 || /[\u0000-\u001f\u007f]/.test(key)) throw invalid('id');
+  if (note != null && (typeof note !== 'string' || note.length > 200)) throw invalid('note');
+  const ids = await transact(async snap => {
+    const text = await readText(SHORTLIST, snap.rev);
+    let cur; try { cur = parseShortlistStrict(text); } catch { throw new ApiError(502, { error: 'upstream_error' }); }
+    const next = toggleEntry(cur, key, !!on, isoNow(new Date()), note == null ? undefined : cleanText(note, false));
+    const had = cur.some(e => e.id === key), has = next.some(e => e.id === key);
+    if (had === has && note == null) return { ch: { message: 'Shortlist (no change)' }, result: next };
+    return { ch: { adds: [{ path: SHORTLIST, bytes: utf8(serializeShortlist(next)) }], message: on ? 'Shortlist moment' : 'Remove from shortlist', audit: [{ action: on ? 'shortlist' : 'unshortlist', clip_id: null, detail: { id: key } }] }, result: next };
+  });
+  return { ok: true, ids };
+}
 
 export async function patchClip(id, fields) {
   requireAdmin(); validId(id);

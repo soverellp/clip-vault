@@ -8,10 +8,11 @@ import { human, dur, bitrate, scoreText, pretty, titleOf, tagsOf } from './fmt.j
 import { parsePost, countOf, copyAll } from './post.js';
 import { toast } from './toast.js';
 import { announce, trapFocus, haptic } from './a11y.js';
-import { copyText, shareClip, chips, postedOf, toggleBtn, setNotes, PLATFORMS, NOTES_MAX, startPost } from './kit.js';
+import { copyText, shareClip, chips, postedOf, toggleBtn, setNotes, PLATFORMS, NOTES_MAX, startPost, canShortlist, shortlisted, toggleShortlist, SHL_HINT } from './kit.js';
 import * as motion from './kit.js';
 import { editForm, peekDraft, peekDraft as takeDraftPeek } from './admin.js';
 
+let shlBtn = null, shlClip = null, shlHint = null;
 let dlg = null, player = null, clipId = null, closing = false, livePost = null, opening = null;
 const BASE = new Set(['posted', 'notes', 'updated_at']);
 // Same clip apart from posting fields? Then repaint just those (the video keeps playing, scroll position stays).
@@ -68,6 +69,15 @@ function postingSec(c, trashed) {
   if (ta) { base = c.notes || ''; ta.value = base; ta._sync(); }
   update(c);
   return { el: sec, update };
+}
+
+// The Shortlist button of the open clip: toggles in admin mode, a read-only status (with the hint) for everyone else. Repainted by refresh().
+function paintShl() {
+  if (!shlBtn || !shlClip) return;
+  const on_ = shortlisted(shlClip), can = canShortlist();
+  shlBtn.setAttribute('aria-pressed', String(on_)); shlBtn.classList.toggle('on', on_); shlBtn.setAttribute('aria-disabled', String(!can));
+  shlBtn.querySelector('.lbl').textContent = on_ ? 'Shortlisted' : 'Shortlist';
+  if (shlHint) shlHint.textContent = can ? '' : (on_ ? 'Shortlisted. ' : 'Not shortlisted. ') + SHL_HINT;
 }
 
 function postKit(c) {
@@ -128,6 +138,8 @@ function render(c) {
   const dbar = h('div', { class: 'dbar glass', role: 'toolbar', 'aria-label': 'Quick actions' }, dl);
   if (!trashed) {
     dbar.append(btn('Post mode', { ic: 'send', cls: 'mag', on: e => startPost(c.id, state.feedIds, e.currentTarget) }));
+    shlClip = c; shlBtn = btn('Shortlist', { ic: 'star', cls: 'shl-btn', on: () => { if (shlBtn?.getAttribute('aria-disabled') !== 'true') toggleShortlist(shlClip); else toast(SHL_HINT + ' (open Admin and paste the write token).'); } }); shlBtn.id = 'btn-shortlist';
+    shlHint = h('span', { class: 'shl-hint', id: 'shl-hint' }); dbar.append(shlBtn, shlHint); paintShl();
     if (canWrite()) for (const pl of PLATFORMS) { const t = toggleBtn(c, pl, { cls: 'sm' }); toggles.push(t); dbar.append(t); }
   }
   livePost = cl => { posting.update(cl); for (const t of toggles) t.update(cl); const old = info.querySelector('.pchips'); if (old) old.replaceWith(chips(cl)); };
@@ -190,6 +202,7 @@ export function open(id) {
 let rendered = null;
 export function refresh() {
   if (dlg?.open && clipId) {
+    paintShl();
     const c = findClip(clipId);
     if (!c) close();
     else if (c !== rendered || peekDraft(c.id)) { if (!peekDraft(c.id) && sameBase(rendered, c) && livePost) { rendered = c; livePost(c); } else render(c); }
