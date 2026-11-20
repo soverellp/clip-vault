@@ -157,7 +157,7 @@ const SEED = { version: 1, ids: [{ id: K_A1, at: '2026-11-19T10:00:00Z' }, { id:
       await admin(page); await openFolder(page, S1);
       await page.click(card('b2') + ' .shl'); await sleep(900);
       ok(hub.commits.length === 0 && hub.text(SF) === '{this is not json', 'corrupt shortlist.json is never overwritten: no commit, file unchanged');
-      ok(await page.isVisible('.toast.error, .toast[data-kind="error"], #toasts >> text=/did not answer|try again/i').catch(() => true) && (await page.getAttribute(card('b2') + ' .shl', 'aria-pressed')) === 'false', 'the user sees an error and the star stays off');
+      ok((await page.textContent('#toasts')).trim().length > 0 && (await page.getAttribute(card('b2') + ' .shl', 'aria-pressed')) === 'false', 'the user sees an error and the star stays off');
       await ctx.close();
     }
     // ================= live refresh: a change from elsewhere and a trashed clip show up without a reload; stale ids are ignored

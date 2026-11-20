@@ -1,5 +1,5 @@
 """pytest for build_static.py and deploy_static.py. Fake secrets only."""
-import json, re, subprocess, sys
+import fnmatch, json, re, subprocess, sys
 from pathlib import Path
 
 import pytest
@@ -300,3 +300,35 @@ def test_brand_png_is_deployed_but_other_pngs_are_not(env, tmp_path):
     assert {"assets/brand/fragbag-96.png", "assets/brand/fragbag-192.png"} <= set(files)
     for stray in ["shot.png", "assets/shot.png", "assets/brand/notes.txt", "js/x.png"]:
         assert stray not in files
+
+
+# ---------------------------------------------------------------- shortlist (admin-only star, _config/shortlist.json)
+def test_shortlist_ships_and_both_api_modes_export_it(env, tmp_path):
+    out, _ = bs.build(tmp_path / "d", env=env)
+    assert (out / "js" / "shortlist.js").is_file()
+    server = bs.exported_names((bs.DEFAULT_UI / "js" / "api.js").read_text())
+    static = bs.exported_names((bs.HERE / "src" / "hubapi.js").read_text())
+    assert {"listShortlist", "setShortlist"} <= server and {"listShortlist", "setShortlist"} <= static
+    assert any(fnmatch.fnmatch("js/shortlist.js", pat) for pat in bs.DEPLOY_ALLOW)      # a --only patch of js/*.js includes it
+    assert bs.forbidden_hit("shortlist.js", (out / "js" / "shortlist.js").read_text()) is None
+    assert bs.forbidden_hit("hubapi.js", (out / "js" / "hubapi.js").read_text()) is None  # still no storage API, no innerHTML
+
+
+def test_shortlist_write_goes_through_the_admin_commit_path_only():
+    src = (bs.HERE / "src" / "hubapi.js").read_text()
+    body = src.split("export async function setShortlist", 1)[1].split("export async function patchClip", 1)[0]
+    assert "requireAdmin()" in body and "transact(" in body and "parseShortlistStrict" in body       # admin only, parent revision, unreadable file fails
+    assert "action: on ? 'shortlist' : 'unshortlist'" in body                                      # audit line in the same commit
+    assert "localStorage" not in src and "sessionStorage" not in src
+
+
+def test_config_json_and_the_passphrase_gate_do_not_know_the_shortlist(env, tmp_path):
+    out, _ = bs.build(tmp_path / "d", env=env)
+    assert "shortlist" not in (out / "config.json").read_text().lower()
+    assert set(json.loads((out / "config.json").read_text())) == {"v", "dataset", "iter", "salt", "iv", "token"}
+
+
+def test_python_uploaders_never_write_the_shortlist_file():
+    for rel in ("site/hfvault/build_hfvault.py", ".claude/skills/clips/scripts/finalise.py"):
+        txt = (bs.REPO / rel).read_text()
+        assert "shortlist" not in txt.lower() and "_config/" not in txt, rel

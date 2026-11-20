@@ -31,6 +31,7 @@ except ImportError as _e:  # build_hfvault needs `cryptography` at import time
 HF_DATASET = "Soverellp/clip-vault"
 INDEX = "index.json"
 TOMBSTONES = "_config/tombstones.json"
+SHORTLIST = "_config/shortlist.json"  # owned by the site (admin mode); sync must never write, replace or delete it
 AUDIT_DIR = "_audit"
 MAX_VIDEOS_PER_COMMIT = 3
 MAX_UNITS_PER_COMMIT = 12
@@ -172,6 +173,8 @@ class Hub:
     def commit(self, rev, adds, texts, message):
         """adds: [(path_in_repo, local_path)], texts: [(path_in_repo, str)]. ONE commit, only if the head is still `rev`."""
         from huggingface_hub import CommitOperationAdd
+        bad = [d for d, _ in list(adds) + list(texts) if d.startswith("_config/")]
+        if bad: raise SyncError(f"refusing to write site-owned file {bad[0]} (the site owns _config/)")
         ops = [CommitOperationAdd(dst, str(local)) for dst, local in adds] + [CommitOperationAdd(dst, t.encode("utf-8")) for dst, t in texts]
         try:
             self.api.create_commit(self.dataset, ops, commit_message=message[:200], repo_type="dataset", parent_commit=rev)

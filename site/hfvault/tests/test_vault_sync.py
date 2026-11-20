@@ -656,3 +656,42 @@ def test_refresh_text_bad_flag_combinations(vs, remote, tmp_path, capsys):
     repo = make_repo(tmp_path, [("s1", "c1", b"A" * 100, True)])
     assert run(vs, repo, "--ids", "c1", capsys=capsys)[0] == 1
     assert run(vs, repo, "--refresh-text", "--meta-only", capsys=capsys)[0] == 1
+
+
+# ------------------------------------------------------------------ shortlist file (_config/shortlist.json) belongs to the site
+
+SHORTLIST_BYTES = b'{"version":1,"ids":[{"id":"s|g1","at":"2026-11-20T10:00:00Z"},{"id":"stale-id","at":"2026-11-20T10:01:00Z"}]}'
+
+
+def test_sync_never_touches_or_deletes_the_shortlist_file(vs, remote, tmp_path, capsys):
+    remote.files["_config/shortlist.json"] = SHORTLIST_BYTES
+    remote.put_index([{"id": "other", "stream": "zzz", "title": "Other", "video": "clips/other.mp4", "sha256": "x"}])
+    repo = make_repo(tmp_path, [("s", "c1", b"A" * 100, True)])
+    assert run(vs, repo, "--yes", capsys=capsys)[0] == 0
+    assert remote.files["_config/shortlist.json"] == SHORTLIST_BYTES
+    assert remote.commits and all("_config/shortlist.json" not in c["paths"] for c in remote.commits)
+
+
+def test_meta_only_and_refresh_text_leave_the_shortlist_alone(vs, remote, tmp_path, capsys):
+    remote.files["_config/shortlist.json"] = SHORTLIST_BYTES
+    repo = make_repo(tmp_path, [("s", "c1", b"A" * 100, False)])
+    assert run(vs, repo, "--yes", capsys=capsys)[0] == 0
+    run(vs, repo, "--meta-only", "--yes", capsys=capsys)
+    run(vs, repo, "--refresh-text", "--yes", capsys=capsys)
+    assert remote.files["_config/shortlist.json"] == SHORTLIST_BYTES
+    assert all("_config/shortlist.json" not in c["paths"] for c in remote.commits)
+
+
+def test_commit_refuses_any_write_under_the_site_owned_config_folder(vs, remote):
+    hub = vs.Hub.__new__(vs.Hub)
+    with pytest.raises(vs.SyncError, match="site-owned"):
+        hub.commit("rev1", [], [("_config/shortlist.json", "{}")], "x")
+    with pytest.raises(vs.SyncError, match="site-owned"):
+        hub.commit("rev1", [("_config/tombstones.json", "/nope")], [], "x")
+    assert vs.SHORTLIST == "_config/shortlist.json" and remote.commits == []
+
+
+def test_a_stale_shortlist_id_does_not_make_the_sync_skip_or_resurrect_a_clip(vs, remote, tmp_path, capsys):
+    remote.files["_config/shortlist.json"] = SHORTLIST_BYTES
+    repo = make_repo(tmp_path, [("s", "stale-id", b"B" * 80, False)])
+    assert run(vs, repo, "--yes", capsys=capsys)[0] == 0 and any(c["id"] == "stale-id" for c in remote_index(remote)["clips"])
