@@ -179,14 +179,14 @@ export const openCardSheet = (...a) => load(() => import('./sheet.js')).then(m =
 export const downloadAll = (...a) => load(() => import('./sheet.js')).then(() => import('./dlqueue.js')).then(m => m.downloadAll(...a));
 export const openShortcuts = () => load(() => import('./shortcuts.js')).then(m => m.openShortcuts());
 
-// ---- shortlist (per moment; everyone sees it, only admin mode with the write token can change it)
-export const SHL_HINT = 'Admin mode to change';
-export const canShortlist = () => state.me?.role === 'admin' && state.me?.can_write === true && state.me?.capabilities?.shortlist === true;
+// ---- shortlist (per moment; anyone who unlocked the site can change it when the site config carries the shortlist-only token; no admin mode)
+export const SHL_HINT = 'Shortlist is read-only on this site';
+export const canShortlist = () => state.me?.capabilities?.shortlist === true;
 export const shortlisted = c => isShortlisted(state.shortlist, c);
 export const shortlistCount = () => liveKeys(state.shortlist, state.clips).size;
 const shlBusy = new Set();
 export async function toggleShortlist(c) {
-  if (!canShortlist()) { toast(SHL_HINT + ' (open Admin and paste the write token).'); return false; }
+  if (!canShortlist()) { toast(SHL_HINT + '.'); return false; }
   const key = momentKey(c); if (shlBusy.has(key)) return false;
   const on = !shortlisted(c); shlBusy.add(key);
   try {

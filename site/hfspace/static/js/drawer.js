@@ -138,7 +138,7 @@ function render(c) {
   const dbar = h('div', { class: 'dbar glass', role: 'toolbar', 'aria-label': 'Quick actions' }, dl);
   if (!trashed) {
     dbar.append(btn('Post mode', { ic: 'send', cls: 'mag', on: e => startPost(c.id, state.feedIds, e.currentTarget) }));
-    shlClip = c; shlBtn = btn('Shortlist', { ic: 'star', cls: 'shl-btn', on: () => { if (shlBtn?.getAttribute('aria-disabled') !== 'true') toggleShortlist(shlClip); else toast(SHL_HINT + ' (open Admin and paste the write token).'); } }); shlBtn.id = 'btn-shortlist';
+    shlClip = c; shlBtn = btn('Shortlist', { ic: 'star', cls: 'shl-btn', on: () => { if (shlBtn?.getAttribute('aria-disabled') !== 'true') toggleShortlist(shlClip); else toast(SHL_HINT + '.'); } }); shlBtn.id = 'btn-shortlist';
     shlHint = h('span', { class: 'shl-hint', id: 'shl-hint' }); dbar.append(shlBtn, shlHint); paintShl();
     if (canWrite()) for (const pl of PLATFORMS) { const t = toggleBtn(c, pl, { cls: 'sm' }); toggles.push(t); dbar.append(t); }
   }

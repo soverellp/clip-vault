@@ -29,10 +29,11 @@ let reauthHandler = null;
 export const setReauthHandler = fn => { reauthHandler = fn; };
 
 // ------------------------------------------------------------------ session (memory only)
-let cfg = null, readToken = null, writeToken = null, stepUpUntil = 0, failCount = 0, notBefore = 0, snapCache = null;
+let cfg = null, readToken = null, writeToken = null, slToken = null, stepUpUntil = 0, failCount = 0, notBefore = 0, snapCache = null;
 const issuedUrls = new Set(), posterCache = new Map(), posterWait = new Map(), mp4Cache = new Map();
 let flight = null;
 export const isAdminMode = () => !!writeToken;
+export const canShortlistWrite = () => !!slToken;
 
 // ------------------------------------------------------------------ config + passphrase
 const hex = s => Uint8Array.from(s.match(/../g) || [], b => parseInt(b, 16));
@@ -46,13 +47,18 @@ async function loadConfig() {
   } catch { throw new ApiError(503, { error: 'not_configured' }); }
   const okHex = v => typeof v === 'string' && /^([0-9a-f]{2})+$/.test(v);
   if (!c || typeof c.dataset !== 'string' || !/^[\w.\-]+\/[\w.\-]+$/.test(c.dataset) || !Number.isInteger(c.iter) || c.iter < 100000 || !okHex(c.salt) || !okHex(c.iv) || !okHex(c.token)) throw new ApiError(503, { error: 'not_configured' });
+  // optional: a second token, scoped to ONLY the shortlist dataset (never the clip dataset), encrypted under the same key with its own iv
+  if (c.sl != null && (typeof c.sl !== 'object' || typeof c.sl.dataset !== 'string' || !/^[\w.\-]+\/[\w.\-]+$/.test(c.sl.dataset) || c.sl.dataset === c.dataset || !okHex(c.sl.iv) || !okHex(c.sl.token))) throw new ApiError(503, { error: 'not_configured' });
   cfg = c; return c;
 }
 async function decryptToken(pw) {
   const E = new TextEncoder();
   const m = await crypto.subtle.importKey('raw', E.encode(pw), 'PBKDF2', false, ['deriveKey']);
   const k = await crypto.subtle.deriveKey({ name: 'PBKDF2', salt: hex(cfg.salt), iterations: cfg.iter, hash: 'SHA-256' }, m, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
-  return new TextDecoder().decode(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: hex(cfg.iv) }, k, hex(cfg.token)));
+  const dec = (iv, ct) => crypto.subtle.decrypt({ name: 'AES-GCM', iv: hex(iv) }, k, hex(ct)).then(b => new TextDecoder().decode(b));
+  const tok = await dec(cfg.iv, cfg.token);          // a wrong passphrase fails here
+  let sl = null; if (cfg.sl) { try { sl = await dec(cfg.sl.iv, cfg.sl.token); } catch { sl = null; } }   // a broken shortlist blob never blocks the read token
+  return { tok, sl };
 }
 export const waitSeconds = () => Math.max(0, Math.ceil((notBefore - Date.now()) / 1000));
 // In-memory attempt delay: 1 s, 2 s, 4 s ... up to 5 min after each wrong passphrase. A reload resets it, and it does NOT slow an
@@ -75,14 +81,14 @@ export const reauthGoogle = authGoogle;
 export async function loginPassphrase(pw, { reauth = false } = {}) {
   const tok = await checkPassphrase(pw);
   if (reauth) { if (!readToken) throw new ApiError(401, { error: 'unauthorized' }); stepUpUntil = Date.now() + STEP_UP_MS; return null; }
-  readToken = tok; snapCache = null;
+  readToken = tok.tok; slToken = tok.sl || null; snapCache = null;
   try { await snapshot(); }
-  catch (e) { readToken = null; throw new ApiError(503, { error: 'vault_unreachable' }); }
+  catch (e) { readToken = slToken = null; throw new ApiError(503, { error: 'vault_unreachable' }); }
   return null;
 }
 // Lock: wipe tokens, revoke every blob URL, clear caches, reload.
 export function wipe() {
-  readToken = writeToken = null; stepUpUntil = 0; snapCache = null;
+  readToken = writeToken = slToken = null; stepUpUntil = 0; snapCache = null;
   for (const u of issuedUrls) { try { URL.revokeObjectURL(u); } catch { /* ignore */ } }
   issuedUrls.clear(); posterCache.clear(); posterWait.clear(); mp4Cache.clear();
   try { flight?.ac.abort(); } catch { /* ignore */ } flight = null;
@@ -93,11 +99,12 @@ export async function me() {
   if (!readToken) throw new ApiError(401, { error: 'unauthorized' });
   const admin = !!writeToken;
   return { role: admin ? 'admin' : 'viewer', name: admin ? 'Admin' : 'Viewer', email: '', picture: '', csrf: '', root: false, sub: '', can_write: admin,
-    capabilities: { users: false, trash: admin, audit: admin, upload: admin, delete: admin, moments: admin, shortlist: admin }, mode: 'static', dataset: cfg?.dataset };
+    capabilities: { users: false, trash: admin, audit: admin, upload: admin, delete: admin, moments: admin, shortlist: !!slToken }, mode: 'static', dataset: cfg?.dataset };
 }
 
 // ------------------------------------------------------------------ Hub plumbing
 const mapErr = (status, who) => {
+  if (who === 'shortlist' && (status === 401 || status === 403)) return new ApiError(403, { error: 'shortlist_token_rejected' });
   if (status === 401 || status === 403) return who === 'write' ? new ApiError(403, { error: 'admin_token_rejected' }) : new ApiError(status === 401 ? 401 : 403, { error: status === 401 ? 'unauthorized' : 'forbidden' });
   if (status === 404) return new ApiError(404, { error: 'not_found' });
   if (status === 409 || status === 412) return new ApiError(409, { error: 'conflict' });
@@ -516,30 +523,73 @@ function cleanPosted(v, cur) {
 }
 const validId = id => { if (typeof id !== 'string' || !ID_RE.test(id) || id.includes('..')) throw new ApiError(404, { error: 'not_found' }); };
 
-// ------------------------------------------------------------------ shortlist (_config/shortlist.json; everyone reads it, only admin mode writes it)
-const SHORTLIST = '_config/shortlist.json';
+// ------------------------------------------------------------------ shortlist (its OWN private dataset, its OWN fine-grained token)
+// The shortlist lives in a separate tiny dataset (cfg.sl.dataset, file shortlist.json). Anyone who unlocked the site can change it with the
+// shortlist token from the encrypted config (no admin mode). That token can write ONLY that dataset: it cannot touch the clips.
+// Clip dataset reads keep using readToken. The old _config/shortlist.json in the clip dataset is only a read-only fallback, never written.
+const SHORTLIST = '_config/shortlist.json', SL_FILE = 'shortlist.json';
+const slResolve = (p, rev) => `${HUB}/datasets/${cfg.sl.dataset}/resolve/${rev}/${repoPath(p)}`;
+async function slHead() {
+  const r = await hubOk(`${HUB}/api/datasets/${cfg.sl.dataset}/revision/main`, { token: slToken, who: 'shortlist' });
+  const j = await r.json().catch(() => null);
+  if (typeof j?.sha !== 'string' || !/^[0-9a-f]{7,64}$/.test(j.sha)) throw new ApiError(502, { error: 'upstream_error' });
+  return j.sha;
+}
+async function slRead(p, rev) {   // null when the file does not exist
+  const r = await hub(slResolve(p, rev), { token: slToken });
+  if (r.status === 404) return null;
+  if (!r.ok) throw mapErr(r.status, 'shortlist');
+  return r.text();
+}
 // -> { ids: [{id, at, note?}], can_write }. A missing or unreadable file reads as an empty shortlist (a read never fails the page).
 export async function listShortlist() {
   if (!readToken) throw new ApiError(401, { error: 'unauthorized' });
   const snap = await snapshot();
-  snap.shortlistP ||= readText(SHORTLIST, snap.rev).then(t => parseShortlist(t || ''));
-  return { ids: await snap.shortlistP, can_write: !!writeToken };
+  snap.shortlistP ||= (async () => {
+    try {
+      let text = null;
+      if (slToken && cfg.sl) text = await slRead(SL_FILE, 'main');
+      if (text == null) text = await readText(SHORTLIST, snap.rev);   // old file in the clip dataset: read-only fallback
+      return parseShortlist(text || '');
+    } catch { return parseShortlist(''); }
+  })();
+  return { ids: await snap.shortlistP, can_write: !!slToken };
 }
-// Add or remove ONE moment key. Same commit mechanism as every admin edit: the file is read at the parent revision, changed, committed with an
-// audit line; an unreadable existing file fails the call instead of being overwritten. Ids stay deduped. -> { ok, ids }
+// Add or remove ONE moment key. The file is read at the parent revision of the SHORTLIST dataset, changed, committed there with an audit line;
+// an unreadable existing file fails the call instead of being overwritten. Ids stay deduped. -> { ok, ids }
 export async function setShortlist(key, on, note) {
-  requireAdmin();
+  if (!readToken) throw new ApiError(401, { error: 'unauthorized' });
+  if (!slToken || !cfg.sl) throw new ApiError(403, { error: 'forbidden' });
   if (typeof key !== 'string' || !key || key.length > 300 || /[\u0000-\u001f\u007f]/.test(key)) throw invalid('id');
   if (note != null && (typeof note !== 'string' || note.length > 200)) throw invalid('note');
-  const ids = await transact(async snap => {
-    const text = await readText(SHORTLIST, snap.rev);
-    let cur; try { cur = parseShortlistStrict(text); } catch { throw new ApiError(502, { error: 'upstream_error' }); }
-    const next = toggleEntry(cur, key, !!on, isoNow(new Date()), note == null ? undefined : cleanText(note, false));
-    const had = cur.some(e => e.id === key), has = next.some(e => e.id === key);
-    if (had === has && note == null) return { ch: { message: 'Shortlist (no change)' }, result: next };
-    return { ch: { adds: [{ path: SHORTLIST, bytes: utf8(serializeShortlist(next)) }], message: on ? 'Shortlist moment' : 'Remove from shortlist', audit: [{ action: on ? 'shortlist' : 'unshortlist', clip_id: null, detail: { id: key } }] }, result: next };
-  });
-  return { ok: true, ids };
+  writing++; writeGeneration++;
+  try {
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      const rev = await slHead();
+      let text; try { text = await slRead(SL_FILE, rev); } catch (e) { throw e instanceof ApiError ? e : new ApiError(502, { error: 'upstream_error' }); }
+      if (text == null) text = await readText(SHORTLIST, 'main');   // first write: start from the old list so nothing is lost (read only)
+      let cur; try { cur = parseShortlistStrict(text); } catch { throw new ApiError(502, { error: 'upstream_error' }); }
+      const now = new Date();
+      const next = toggleEntry(cur, key, !!on, isoNow(now), note == null ? undefined : cleanText(note, false));
+      const had = cur.some(e => e.id === key), has = next.some(e => e.id === key);
+      if (had === has && note == null) return { ok: true, ids: next };
+      const apath = `_audit/${now.toISOString().slice(0, 7)}.jsonl`;
+      let old = (await slRead(apath, rev)) || ''; if (old && !old.endsWith('\n')) old += '\n';
+      const line = JSON.stringify({ at: isoNow(now), actor: 'shortlist', action: on ? 'shortlist' : 'unshortlist', clip_id: null, detail: { id: key } });
+      const lines = [{ key: 'header', value: { summary: on ? 'Shortlist moment' : 'Remove from shortlist', description: '', parentCommit: rev } },
+        { key: 'file', value: { content: b64(utf8(serializeShortlist(next))), path: SL_FILE, encoding: 'base64' } },
+        { key: 'file', value: { content: b64(utf8(old + line + '\n')), path: apath, encoding: 'base64' } }];
+      try {
+        await hubOk(`${HUB}/api/datasets/${cfg.sl.dataset}/commit/main`, { method: 'POST', token: slToken, who: 'shortlist', headers: { 'Content-Type': 'application/x-ndjson' }, body: lines.map(l => JSON.stringify(l)).join('\n') + '\n' });
+        snapCache = null; return { ok: true, ids: next };
+      } catch (e) {
+        if (e instanceof ApiError && e.code === 'shortlist_token_rejected') slToken = null;
+        if (e instanceof ApiError && e.code === 'conflict' && attempt < MAX_RETRIES) continue;
+        if (e instanceof ApiError && e.code === 'conflict') throw new ApiError(409, { error: 'conflict', message: 'The shortlist changed while you were saving. Try again.' });
+        throw e;
+      }
+    }
+  } finally { writing--; writeGeneration++; }
 }
 
 export async function patchClip(id, fields) {
