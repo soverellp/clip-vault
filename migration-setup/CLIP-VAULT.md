@@ -65,7 +65,10 @@ Rules: the write token never goes in the page source, the config or the repo; Sp
 
 Tests that exist: server mode `python3 -m pytest -q -p no:cacheprovider` in `site/hfspace/tests` and in `site/hfvault/tests`; the UI launcher is described in `site/hfspace/tests/README.md`. Static-mode tests: see the `site/hfstatic` README when it exists.
 
-## Credentials without looking at them: `site/hfvault/with_vault_creds.py`
+## Credentials: Bitwarden via `site/hfvault/with_bw_creds.py` (current)
+Credentials now live in a dedicated Bitwarden account (items named like the env var: `HF_Token` or `HF_Tokem`, `VAULT_READ_TOKEN` or `Clip_vault_HFToken`, `VAULT_PASSPHRASE`, `KAGGLE_USERNAME`, `KAGGLE_APITOKEN`). Run any allowed script with them: `python3 site/hfvault/with_bw_creds.py -- python3 site/hfvault/build_hfvault.py <scratchpad>/vault Soverellp/clip-vault --upload` (deploy: `... -- python3 site/hfstatic/deploy_static.py`; names only: `with_bw_creds.py --list`). Setup, rotation and rules: `migration-setup/BITWARDEN.md`. The Kaggle-dataset route below is LEGACY and stays only until Bitwarden is verified.
+
+## LEGACY credentials route: `site/hfvault/with_vault_creds.py`
 **Where the credentials are (verified 2026-11-17, names only).** Kaggle dataset `arvr7plays/kagglegpu1` (https://www.kaggle.com/datasets/arvr7plays/kagglegpu1/, private, account `ARVR7Plays`). It holds ONE file, `Kagglegpu1.pdf` (33 KB), whose text has 5 `NAME=value` lines:
 
 | Key in the file | Meaning | Script maps it to |

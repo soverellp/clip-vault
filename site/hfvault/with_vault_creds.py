@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Run a command with the clip-vault credentials injected, without anyone seeing them.
+"""LEGACY: replaced by site/hfvault/with_bw_creds.py (Bitwarden); kept until Bitwarden is verified.
+
+Run a command with the clip-vault credentials injected, without anyone seeing them.
 
 The credentials live in the Kaggle dataset <KAGGLE_USERNAME>/kagglegpu1 (plain text KEY=VALUE lines).
 This script downloads it to a private temp folder, parses it IN MEMORY, deletes the folder, and starts
