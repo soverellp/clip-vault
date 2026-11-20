@@ -31,6 +31,7 @@ WEAK_NOTE = "WEAK PASSPHRASE ACCEPTED BY OWNER"
 CSP = ("default-src 'none'; script-src 'self'; connect-src 'self' https://huggingface.co https://*.hf.co; "
        "img-src 'self' blob:; media-src blob:; style-src 'self'; font-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'")
 # Files that deploy_static.py may upload (everything else, tests and .env included, is never sent).
+DEFAULT_SL_PATH = "_config/shortlist.json"
 DEPLOY_ALLOW = ["index.html", "README.md", "config.json", "css/*.css", "js/*.js", "vendor/*.js", "assets/*.svg", "assets/brand/*.png", "fonts/*.woff2"]
 FORBIDDEN = re.compile(r"localStorage|sessionStorage|indexedDB|document\.cookie|\beval\s*\(|new Function|innerHTML|outerHTML|insertAdjacentHTML|document\.write|serviceWorker|setAttribute\(\s*['\"]style['\"]|cssText", re.I)
 
@@ -115,15 +116,28 @@ def prepare_out_dir(out):
     return r
 
 
-def encrypt_token(token, passphrase, iterations=ITER):
+def encrypt_token(token, passphrase, iterations=ITER, extra=None):
+    """extra = optional second secret (the shortlist writer): same salt and key (one PBKDF2), its own random iv -> cfg["sl"] fields iv/token."""
     salt, iv = secrets.token_bytes(16), secrets.token_bytes(12)
     key = PBKDF2HMAC(hashes.SHA256(), 32, salt, iterations).derive(passphrase.encode())
-    return {"iter": iterations, "salt": salt.hex(), "iv": iv.hex(), "token": AESGCM(key).encrypt(iv, token.encode(), None).hex()}
+    out = {"iter": iterations, "salt": salt.hex(), "iv": iv.hex(), "token": AESGCM(key).encrypt(iv, token.encode(), None).hex()}
+    if extra:
+        iv2 = secrets.token_bytes(12)
+        out["sl"] = {"iv": iv2.hex(), "token": AESGCM(key).encrypt(iv2, extra.encode(), None).hex()}
+    return out
 
 
 def decrypt_token(cfg, passphrase):
     key = PBKDF2HMAC(hashes.SHA256(), 32, bytes.fromhex(cfg["salt"]), cfg["iter"]).derive(passphrase.encode())
     return AESGCM(key).decrypt(bytes.fromhex(cfg["iv"]), bytes.fromhex(cfg["token"]), None).decode()
+
+
+def decrypt_shortlist_token(cfg, passphrase):
+    """The shortlist token, or None when the config has none."""
+    if not cfg.get("sl"):
+        return None
+    key = PBKDF2HMAC(hashes.SHA256(), 32, bytes.fromhex(cfg["salt"]), cfg["iter"]).derive(passphrase.encode())
+    return AESGCM(key).decrypt(bytes.fromhex(cfg["sl"]["iv"]), bytes.fromhex(cfg["sl"]["token"]), None).decode()
 
 
 def transform_index(html):
@@ -176,7 +190,7 @@ dataset `{dataset}`, encrypted with a passphrase (PBKDF2-SHA256 600k + AES-256-G
 {note}"""
 
 
-def build(out=DEFAULT_OUT, dataset=DEFAULT_DATASET, ui=DEFAULT_UI, env=None, weak=False, today=None, write_info_copy=True):
+def build(out=DEFAULT_OUT, dataset=DEFAULT_DATASET, ui=DEFAULT_UI, env=None, weak=False, today=None, write_info_copy=True, sl_dataset=None, sl_path=DEFAULT_SL_PATH):
     env = os.environ if env is None else env
     ui = Path(ui)
     if not re.fullmatch(r"[\w.\-]+/[\w.\-]+", dataset):
@@ -184,6 +198,15 @@ def build(out=DEFAULT_OUT, dataset=DEFAULT_DATASET, ui=DEFAULT_UI, env=None, wea
     tok, pw = env.get("VAULT_READ_TOKEN", ""), env.get("VAULT_PASSPHRASE", "")
     check_token(tok, env)
     check_passphrase(pw, weak)
+    sl_tok = env.get("VAULT_SHORTLIST_TOKEN", "")
+    sl_dataset = sl_dataset or dataset
+    if sl_tok:
+        if not sl_tok.startswith("hf_") or re.search(r"\s", sl_tok):
+            die("VAULT_SHORTLIST_TOKEN is not an hf_ token")
+        if sl_tok == tok:
+            die("VAULT_SHORTLIST_TOKEN must differ from the read token")
+        if not re.fullmatch(r"[\w.\-]+/[\w.\-]+", sl_dataset) or not re.fullmatch(r"[\w.\-/]{1,100}", sl_path) or ".." in sl_path or sl_path.startswith("/"):
+            die("bad shortlist dataset or path")
     for need in ("index.html", "js/api.js", "js/main.js", "js/state.js"):
         if not (ui / need).is_file():
             die(f"UI folder {ui} lacks {need}")
@@ -208,7 +231,9 @@ def build(out=DEFAULT_OUT, dataset=DEFAULT_DATASET, ui=DEFAULT_UI, env=None, wea
         if bad:
             shutil.rmtree(out)
             die(f"{f.name} uses a forbidden browser API ({bad!r}); the static site keeps everything in memory (only the 'cv.pass' remember key in {REMEMBER_FILE} is allowed)")
-    cfg = {"v": 1, "dataset": dataset, **encrypt_token(tok, pw)}
+    cfg = {"v": 1, "dataset": dataset, **encrypt_token(tok, pw, extra=sl_tok or None)}
+    if sl_tok:
+        cfg["sl"].update({"dataset": sl_dataset, "path": sl_path})
     (out / "config.json").write_text(json.dumps(cfg))
     (out / "README.md").write_text(readme_text(dataset, weak, today))
     (out / ".nojekyll").write_text("")
@@ -230,10 +255,12 @@ def main(argv=None):
     ap.add_argument("--dataset", default=DEFAULT_DATASET)
     ap.add_argument("--ui", default=str(DEFAULT_UI))
     ap.add_argument("--no-info-copy", action="store_true", help="do not refresh site/hfstatic/build-info.json (used by the tests)")
+    ap.add_argument("--shortlist-dataset", default=None, help="dataset holding the shortlist file (default: the clip dataset)")
+    ap.add_argument("--shortlist-path", default=DEFAULT_SL_PATH)
     ap.add_argument("--accept-weak-passphrase", action="store_true",
                     help="owner opt-in: skip ONLY the passphrase strength rules (prints a warning, recorded in build-info.json)")
     a = ap.parse_args(argv)
-    out, info = build(a.out, a.dataset, a.ui, weak=a.accept_weak_passphrase, write_info_copy=not a.no_info_copy)
+    out, info = build(a.out, a.dataset, a.ui, weak=a.accept_weak_passphrase, write_info_copy=not a.no_info_copy, sl_dataset=a.shortlist_dataset, sl_path=a.shortlist_path)
     print(f"ok: {len(info['files'])} files -> {out} (secrets not printed)" + ("; WEAK PASSPHRASE ACCEPTED BY OWNER" if a.accept_weak_passphrase else ""))
 
 

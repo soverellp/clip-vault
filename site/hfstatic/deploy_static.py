@@ -36,10 +36,39 @@ def scan_for_secrets(dist: Path, files):
     return [f for f in files if TOKEN_RE.search((dist / f).read_text(errors="ignore"))]
 
 
+def verify_config(dist: Path):
+    """Decrypt dist/config.json with VAULT_PASSPHRASE in a FRESH process: the read token (and the shortlist token, when the env has one) must
+    come back exactly. Prints only ok/fail. Returns True when the same passphrase unlocks the new config."""
+    import subprocess
+    code = ("import json,os,sys;sys.path.insert(0,sys.argv[1]);import build_static as b;c=json.load(open(sys.argv[2]));pw=os.environ['VAULT_PASSPHRASE'];"
+            "ok=b.decrypt_token(c,pw)==os.environ['VAULT_READ_TOKEN'];sl=os.environ.get('VAULT_SHORTLIST_TOKEN','');"
+            "ok=ok and (b.decrypt_shortlist_token(c,pw)==sl if sl else 'sl' not in c);sys.exit(0 if ok else 1)")
+    r = subprocess.run([sys.executable, "-c", code, str(HERE), str(dist / "config.json")], capture_output=True, env=os.environ.copy())
+    return r.returncode == 0
+
+
+def shortlist_scope(tok, dataset):
+    """-> (can_write_dataset, text). Names and roles only, never the token."""
+    import json, urllib.request
+    try:
+        j = json.load(urllib.request.urlopen(urllib.request.Request("https://huggingface.co/api/whoami-v2", headers={"Authorization": "Bearer " + tok}), timeout=30))
+    except Exception as e:
+        return False, f"whoami failed ({type(e).__name__})"
+    a = (j.get("auth") or {}).get("accessToken") or {}
+    role = a.get("role")
+    if role in ("write", "admin"):
+        return True, f"account-wide role {role}"
+    sc = [(x["entity"]["name"], x["entity"]["type"], x["permissions"]) for x in (a.get("fineGrained") or {}).get("scoped", [])]
+    w = any(n == dataset and "repo.write" in p for n, _, p in sc) or any(t == "user" and "repo.write" in p for n, t, p in sc)
+    return w, "fine-grained, scopes: " + "; ".join(f"{t}:{n}[{','.join(p)}]" for n, t, p in sc)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--space", default=DEFAULT_SPACE)
     ap.add_argument("--dataset", default=bs.DEFAULT_DATASET)
+    ap.add_argument("--shortlist-dataset", default=None, help="dataset that holds the shortlist file (default: the clip dataset)")
+    ap.add_argument("--shortlist-path", default=bs.DEFAULT_SL_PATH)
     ap.add_argument("--dist", default=str(bs.DEFAULT_OUT))
     ap.add_argument("--no-build", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
@@ -54,8 +83,18 @@ def main(argv=None):
             if not re.fullmatch(r"(js|css)/[\w.\-]+\.(js|css)", f):
                 sys.exit(f"error: --only takes js/*.js or css/*.css paths relative to dist, got {f!r}")
     if not a.no_build:
-        bs.build(a.dist, a.dataset, weak=a.accept_weak_passphrase)
+        bs.build(a.dist, a.dataset, weak=a.accept_weak_passphrase, sl_dataset=a.shortlist_dataset, sl_path=a.shortlist_path)
     dist = Path(a.dist)
+    if not a.no_build:
+        sl = os.environ.get("VAULT_SHORTLIST_TOKEN", "")
+        if sl:
+            okw, why = shortlist_scope(sl, a.shortlist_dataset or a.dataset)
+            print("shortlist token: " + why + ("" if okw else "  (NO write access to the shortlist dataset)"))
+            if not okw:
+                sys.exit("error: the shortlist token cannot write the shortlist dataset; nothing uploaded")
+        if not verify_config(dist):
+            sys.exit("error: the new config.json did NOT decrypt back to the expected tokens with VAULT_PASSPHRASE; nothing uploaded")
+        print("verify-decrypt: ok (the passphrase unlocks the new config.json)")
     if not (dist / bs.MARKER).is_file() or not (dist / "index.html").is_file():
         sys.exit(f"error: {dist} is not a build_static.py output (run without --no-build)")
     files = planned_files(dist)

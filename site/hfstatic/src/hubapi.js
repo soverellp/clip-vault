@@ -47,8 +47,8 @@ async function loadConfig() {
   } catch { throw new ApiError(503, { error: 'not_configured' }); }
   const okHex = v => typeof v === 'string' && /^([0-9a-f]{2})+$/.test(v);
   if (!c || typeof c.dataset !== 'string' || !/^[\w.\-]+\/[\w.\-]+$/.test(c.dataset) || !Number.isInteger(c.iter) || c.iter < 100000 || !okHex(c.salt) || !okHex(c.iv) || !okHex(c.token)) throw new ApiError(503, { error: 'not_configured' });
-  // optional: a second token, scoped to ONLY the shortlist dataset (never the clip dataset), encrypted under the same key with its own iv
-  if (c.sl != null && (typeof c.sl !== 'object' || typeof c.sl.dataset !== 'string' || !/^[\w.\-]+\/[\w.\-]+$/.test(c.sl.dataset) || c.sl.dataset === c.dataset || !okHex(c.sl.iv) || !okHex(c.sl.token))) throw new ApiError(503, { error: 'not_configured' });
+  // optional: a second token (the shortlist writer), encrypted under the same key with its own iv; dataset + path say where the shortlist file lives
+  if (c.sl != null && (typeof c.sl !== 'object' || typeof c.sl.dataset !== 'string' || !/^[\w.\-]+\/[\w.\-]+$/.test(c.sl.dataset) || (c.sl.path != null && (typeof c.sl.path !== 'string' || !/^[\w.\-\/]{1,100}$/.test(c.sl.path) || c.sl.path.includes('..') || c.sl.path.startsWith('/'))) || !okHex(c.sl.iv) || !okHex(c.sl.token))) throw new ApiError(503, { error: 'not_configured' });
   cfg = c; return c;
 }
 async function decryptToken(pw) {
@@ -524,10 +524,12 @@ function cleanPosted(v, cur) {
 const validId = id => { if (typeof id !== 'string' || !ID_RE.test(id) || id.includes('..')) throw new ApiError(404, { error: 'not_found' }); };
 
 // ------------------------------------------------------------------ shortlist (its OWN private dataset, its OWN fine-grained token)
-// The shortlist lives in a separate tiny dataset (cfg.sl.dataset, file shortlist.json). Anyone who unlocked the site can change it with the
-// shortlist token from the encrypted config (no admin mode). That token can write ONLY that dataset: it cannot touch the clips.
-// Clip dataset reads keep using readToken. The old _config/shortlist.json in the clip dataset is only a read-only fallback, never written.
-const SHORTLIST = '_config/shortlist.json', SL_FILE = 'shortlist.json';
+// The shortlist file lives at cfg.sl.dataset / cfg.sl.path (the clip dataset's _config/shortlist.json today, or a separate tiny dataset).
+// Anyone who unlocked the site can change it with the shortlist token from the encrypted config (no admin mode); its scope is whatever
+// the owner put in the config (see CLIP-VAULT.md). Clip reads keep using readToken. If the shortlist lives in another dataset, the old
+// _config/shortlist.json in the clip dataset is only a read-only fallback and is never written.
+const SHORTLIST = '_config/shortlist.json';
+const slFile = () => cfg.sl.path || 'shortlist.json';
 const slResolve = (p, rev) => `${HUB}/datasets/${cfg.sl.dataset}/resolve/${rev}/${repoPath(p)}`;
 async function slHead() {
   const r = await hubOk(`${HUB}/api/datasets/${cfg.sl.dataset}/revision/main`, { token: slToken, who: 'shortlist' });
@@ -548,7 +550,7 @@ export async function listShortlist() {
   snap.shortlistP ||= (async () => {
     try {
       let text = null;
-      if (slToken && cfg.sl) text = await slRead(SL_FILE, 'main');
+      if (slToken && cfg.sl) text = await slRead(slFile(), 'main');
       if (text == null) text = await readText(SHORTLIST, snap.rev);   // old file in the clip dataset: read-only fallback
       return parseShortlist(text || '');
     } catch { return parseShortlist(''); }
@@ -566,7 +568,7 @@ export async function setShortlist(key, on, note) {
   try {
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
       const rev = await slHead();
-      let text; try { text = await slRead(SL_FILE, rev); } catch (e) { throw e instanceof ApiError ? e : new ApiError(502, { error: 'upstream_error' }); }
+      let text; try { text = await slRead(slFile(), rev); } catch (e) { throw e instanceof ApiError ? e : new ApiError(502, { error: 'upstream_error' }); }
       if (text == null) text = await readText(SHORTLIST, 'main');   // first write: start from the old list so nothing is lost (read only)
       let cur; try { cur = parseShortlistStrict(text); } catch { throw new ApiError(502, { error: 'upstream_error' }); }
       const now = new Date();
@@ -577,7 +579,7 @@ export async function setShortlist(key, on, note) {
       let old = (await slRead(apath, rev)) || ''; if (old && !old.endsWith('\n')) old += '\n';
       const line = JSON.stringify({ at: isoNow(now), actor: 'shortlist', action: on ? 'shortlist' : 'unshortlist', clip_id: null, detail: { id: key } });
       const lines = [{ key: 'header', value: { summary: on ? 'Shortlist moment' : 'Remove from shortlist', description: '', parentCommit: rev } },
-        { key: 'file', value: { content: b64(utf8(serializeShortlist(next))), path: SL_FILE, encoding: 'base64' } },
+        { key: 'file', value: { content: b64(utf8(serializeShortlist(next))), path: slFile(), encoding: 'base64' } },
         { key: 'file', value: { content: b64(utf8(old + line + '\n')), path: apath, encoding: 'base64' } }];
       try {
         await hubOk(`${HUB}/api/datasets/${cfg.sl.dataset}/commit/main`, { method: 'POST', token: slToken, who: 'shortlist', headers: { 'Content-Type': 'application/x-ndjson' }, body: lines.map(l => JSON.stringify(l)).join('\n') + '\n' });
