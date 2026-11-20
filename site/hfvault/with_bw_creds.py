@@ -15,7 +15,8 @@ variables (BW_* removed) and its output is masked -> always `bw lock`, `bw logou
 SIGTERM, SIGHUP). Only counts and item NAMES are printed. Items whose names are not valid env names are ignored.
 Aliases: HF_Tokem/HF_TOKEN -> HF_Token, Clip_vault_HFToken/CLIP_VAULT_HFTOKEN -> VAULT_READ_TOKEN.
 Refuses: empty command, a read token equal to the write token, a VAULT_READ_TOKEN that is provably not read-only.
-Like the legacy with_vault_creds.py, only `python3 <allowed repo script>` may run after `--`.
+Like the legacy with_vault_creds.py, only `python3 <allowed repo script>` may run after `--` (ALLOWED_SCRIPTS: deploy/build/vault_sync,
+kaggle.py, check_creds.py = the credential health check).
 """
 import importlib.util, json, os, re, shutil, signal, subprocess, sys, tempfile
 from pathlib import Path
@@ -25,7 +26,7 @@ REPO = HERE.parents[1]
 _spec = importlib.util.spec_from_file_location("with_vault_creds", HERE / "with_vault_creds.py")
 wvc = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(wvc)  # masking helpers, read-only check
 
-ALLOWED_SCRIPTS = wvc.ALLOWED_SCRIPTS + (".claude/skills/clips/scripts/download/kaggle.py",)
+ALLOWED_SCRIPTS = wvc.ALLOWED_SCRIPTS + (".claude/skills/clips/scripts/download/kaggle.py", "site/hfvault/check_creds.py")
 ALIASES = {"HF_Tokem": "HF_Token", "HF_TOKEN": "HF_Token", "Clip_vault_HFToken": "VAULT_READ_TOKEN",
            "CLIP_VAULT_HFTOKEN": "VAULT_READ_TOKEN"}
 ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -66,17 +67,47 @@ def fetch_items(bw):
     except ValueError: die("bw list items returned unreadable output")
     return items if isinstance(items, list) else []
 
+def field_value(it, name):
+    """Fallback when password/notes are empty: a custom text/hidden field named like the item, else the only non-empty one."""
+    fs = [f for f in (it.get("fields") or []) if isinstance(f, dict) and f.get("type") in (0, 1)
+          and isinstance(f.get("value"), str) and f["value"].strip()]
+    named = [f for f in fs if (f.get("name") or "") == name]
+    pick = named[0] if named else (fs[0] if len(fs) == 1 else None)
+    return pick["value"] if pick else None
+
+# Secure Notes whose item names are not env names: item name -> [(source, VAR)]; source "notes" = notes text,
+# "field" = the note's only non-empty custom field (the token).
+ITEM_MAP = {
+    "Hugging Face Token 1 (SovereLLP)": [("field", "HF_Token")],
+    "Hugging Face Clip Vault Token (SovereLLP)": [("field", "VAULT_READ_TOKEN")],
+    "Hugging Face Token 2 (ARVR7Plays)": [("field", "HF_Token_Backup")],
+    "Clip Vault Site": [("field", "VAULT_PASSPHRASE")],
+    "Kaggle GPU (ARVR7Plays)": [("notes", "KAGGLE_USERNAME"), ("field", "KAGGLE_APITOKEN")],
+    "Kaggle GPU (SovereLLP)": [("notes", "KAGGLE_USERNAME2"), ("field", "KAGGLE_APITOKEN2")],
+}
+
 def map_items(items):
-    """-> (env {VAR: value}, names [item names loaded], ignored count). Never touches usernames."""
+    """-> (env {VAR: value}, names [env names loaded], ignored count). Never touches Login usernames."""
     env, names, ignored = {}, [], 0
     for it in items:
         if not isinstance(it, dict): continue
         name, typ = it.get("name") or "", it.get("type")
+        if name in ITEM_MAP and typ == 2:
+            got = 0
+            for src, var in ITEM_MAP[name]:
+                v = (it.get("notes") if src == "notes" else field_value(it, None)) or ""
+                v = v.strip()
+                if not v or var in env: continue
+                env[var] = v; names.append(var); got += 1
+            if not got: ignored += 1
+            continue
         if typ == 1: val = (it.get("login") or {}).get("password")
         elif typ == 2: val = it.get("notes")
         else: ignored += 1; continue
+        from_field = not (val or "").strip()
+        if from_field: val = field_value(it, name)
         if bad_name(name) or not val: ignored += 1; continue
-        val = val.strip() if typ == 2 else val
+        val = val.strip() if typ == 2 or from_field else val
         var = ALIASES.get(name, name)
         if var in env: print(f"WARNING: duplicate item {name} ignored (first one kept)", file=sys.stderr); continue
         env[var] = val; names.append(name)
@@ -127,6 +158,13 @@ def main(argv=None):
         env, names, ignored = map_items(items)
         if listing:
             print(f"{len(names)} usable item(s), {ignored} ignored:", ", ".join(sorted(names)) or "none")
+            if ignored:
+                for it in items:
+                    if isinstance(it, dict) and mask(str(it.get("name") or "")) and (it.get("name") or "") not in names and (it.get("name") or "") not in ITEM_MAP:
+                        print("  ignored:", mask(repr(it.get("name") or "")), "type", it.get("type"),
+                              "fields", [(f.get("name") if not bad_name(f.get("name") or "") else "?", f.get("type"), bool((f.get("value") or "").strip() if isinstance(f.get("value"), str) else 0))
+                                         for f in (it.get("fields") or []) if isinstance(f, dict)],
+                              "bad_name" if bad_name(it.get("name") or "") else "")
             return 0
         if only: env, names = select_only(env, names, only)
         print(f"loaded {len(env)} item(s) from Bitwarden: " + (", ".join(names) or "none"), file=sys.stderr)

@@ -2,7 +2,7 @@
 """Build and deploy the static Clip Vault site to a free Hugging Face STATIC Space.
 
 Run it through the credential wrapper so the keys never appear anywhere:
-  python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfstatic/deploy_static.py
+  python3 site/hfvault/with_bw_creds.py -- python3 site/hfstatic/deploy_static.py
 
 Environment NAMES read: VAULT_READ_TOKEN, VAULT_PASSPHRASE (build), HF_Token (the account's write token, used only to
 create/upload the Space). The admin's dataset WRITE token is never used here: it is pasted in the browser when needed.
@@ -119,7 +119,7 @@ def main(argv=None):
         return
     w = os.environ.get("HF_Token") or os.environ.get("HF_TOKEN") or ""
     if not w:
-        sys.exit("error: HF_Token (the account write token) is not set; run through site/hfvault/with_vault_creds.py")
+        sys.exit("error: HF_Token (the account write token) is not set; run through python3 site/hfvault/with_bw_creds.py -- python3 site/hfstatic/deploy_static.py")
     from huggingface_hub import HfApi
     from huggingface_hub.errors import HfHubHTTPError
     api = HfApi(token=w)

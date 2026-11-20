@@ -37,7 +37,7 @@ flowchart LR
 ```
 Clip to friend, numbered:
 1. Render, then `finalise.py --stream streams/<s>` (dry run) and `--yes` (clips reach `main`).
-2. Upload: `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfvault/build_hfvault.py <scratch>/vault Soverellp/clip-vault --upload` (merges `index.json` by clip id).
+2. Upload: `python3 site/hfvault/with_bw_creds.py -- python3 site/hfvault/build_hfvault.py <scratch>/vault Soverellp/clip-vault --upload` (merges `index.json` by clip id).
 3. Build and deploy the static page (`site/hfstatic`, IN PROGRESS: see its README when present): the build encrypts the read token with the gate password into a PUBLIC config and uploads the page plus that config to the Static Space. A short human password needs the explicit flag `--accept-weak-passphrase` (D26).
 4. Friend opens https://soverellp-clip-vault-site.hf.space (a sleeping static Space wakes quickly; it is not the Docker cold start).
 5. Friend types the shared password. Wrong password: one generic error, no request to the dataset. Right password: the page decrypts the read token IN MEMORY (no storage, no cookie), loads `index.json` and posters from the Hub, plays a clip on tap, offers Download. Times are shown in the viewer's timezone.
@@ -69,7 +69,7 @@ flowchart LR
 ## S2. Clip creation to a friend watching (server mode)
 1. The clips pipeline renders a clip (1080x1920) with its poster and `post.md` in `streams/<stream>/clips/<id>/`.
 2. `python3 .claude/skills/clips/scripts/finalise.py --stream streams/<s>` (dry run), then `--yes`: clips reach `main`.
-3. Upload: `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfvault/build_hfvault.py <scratch>/vault Soverellp/clip-vault --upload`. The wrapper injects tokens into the child only; the build merges the remote `index.json` by clip id and uploads `clips/<id>.mp4`, `clips/<id>.jpg`, `index.json`.
+3. Upload: `python3 site/hfvault/with_bw_creds.py -- python3 site/hfvault/build_hfvault.py <scratch>/vault Soverellp/clip-vault --upload`. The wrapper injects tokens into the child only; the build merges the remote `index.json` by clip id and uploads `clips/<id>.mp4`, `clips/<id>.jpg`, `index.json`.
 4. The Space (deployed once, always the same code) reads the dataset with the read token held as a Space secret.
 5. Friend opens https://soverellp-clip-vault-site.hf.space (direct URL, not the huggingface.co iframe: `frame-ancestors 'none'`).
 6. Friend presses Sign in with Google (old v1: Sign in with Hugging Face). The Space checks the user list and sets a signed HttpOnly `__Host-` session cookie.
@@ -110,7 +110,7 @@ All admin actions require an admin session; the Space uses the write token (D18)
 ## S5. Deploy flow (server mode)
 1. Create or confirm the Google OAuth client with authorized JavaScript origin `https://soverellp-clip-vault-site.hf.space` (user does the clicks; already done, see [GOOGLE-CONFIG.md](GOOGLE-CONFIG.md); no client secret is used).
 2. In the Claude environment set the NAMES listed in [ARCHITECTURE.md](ARCHITECTURE.md) (values never in chat), start a NEW session.
-3. Run `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfspace/deploy_space.py`. On this account creating a Docker Space answers HTTP 402 (D23); this needs the PRO plan or another host.
+3. Run `python3 site/hfvault/with_bw_creds.py -- python3 site/hfspace/deploy_space.py`. On this account creating a Docker Space answers HTTP 402 (D23); this needs the PRO plan or another host.
 4. The script creates the public Docker Space if missing, uploads ONLY an allow-list of files, sets secrets, prints names and OK/ERROR.
 5. HF builds the Docker image (about 3 minutes; real build never run: UNTESTED).
 6. Test per [RUNBOOK.md](RUNBOOK.md).
@@ -140,7 +140,7 @@ Details: [SECURITY.md](SECURITY.md) and [RUNBOOK.md](RUNBOOK.md).
 ## S8. Static mode as deployed (2026-11-18, CURRENT plan, D35)
 Done and tested:
 1. The clips are in the private dataset `Soverellp/clip-vault` (18 clips, 517 MB, from S2 step 3).
-2. Deploy: `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfstatic/deploy_static.py --accept-weak-passphrase` uploaded 50 files to the Static Space `Soverellp/clip-vault-site`. The passphrase came from the user in chat as a one-command environment variable, not from the key dataset (which has no passphrase entry). Future deploys: store the passphrase in the Claude environment first.
+2. Deploy: `python3 site/hfvault/with_bw_creds.py -- python3 site/hfstatic/deploy_static.py --accept-weak-passphrase` uploaded 50 files to the Static Space `Soverellp/clip-vault-site`. The passphrase came from the user in chat as a one-command environment variable, not from the key dataset (which has no passphrase entry). Future deploys: store the passphrase in the Claude environment first.
 3. Friend opens https://soverellp-clip-vault-site.hf.space, types the shared password, the page decrypts the read token in browser memory and lists the clips from the private dataset (no server, no Google).
 4. Browser test (Playwright, live Space, 390x844 viewport): unlock with the password works; gallery shows 18 clips / 517 MB; no console errors.
 
@@ -152,4 +152,4 @@ Flow for the next steps: the user tests on a phone; then the code moves to the G
 1. (D44) Anyone who unlocked the site, no admin mode: tap the star on a card, or the Shortlist button in the clip detail. One commit at the parent revision writes `_config/shortlist.json` plus the audit line (`shortlist` / `unshortlist`).
 2. Without a shortlist token in the config (old config) the stars are read-only (hint "Shortlist is read-only on this site"). Everyone can use the "Shortlisted N" chip and "Copy shortlist" (text: title, stream, post caption). The poll (about 60 s) shows a change made elsewhere.
 3. One star covers every version of a moment (with streamer, clean, face on top). Deleted or trashed clips drop out of the view; their ids are only ignored.
-4. `vault_sync.py`, `build_hfvault.py`, `finalise.py` never write the file. Deploy: `python3 site/hfvault/with_vault_creds.py -- python3 site/hfstatic/deploy_static.py --only js/shortlist.js js/library.js js/drawer.js js/kit.js js/data.js js/main.js js/state.js js/api.js js/hubapi.js js/autorefresh.js css/library.css` (patch, never `config.json`). The config (shortlist token, D44) is rebuilt only by `VAULT_PASSPHRASE=... bash site/hfstatic/deploy_config.sh` (verify-decrypt before upload).
+4. `vault_sync.py`, `build_hfvault.py`, `finalise.py` never write the file. Deploy: `python3 site/hfvault/with_bw_creds.py -- python3 site/hfstatic/deploy_static.py --only js/shortlist.js js/library.js js/drawer.js js/kit.js js/data.js js/main.js js/state.js js/api.js js/hubapi.js js/autorefresh.js css/library.css` (patch, never `config.json`). The config (shortlist token, D44) is rebuilt only by `VAULT_PASSPHRASE=... bash site/hfstatic/deploy_config.sh` (verify-decrypt before upload).

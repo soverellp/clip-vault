@@ -14,7 +14,7 @@ The private clip vault: how finished vertical clips reach friends. The clips sit
 2. Build: `python3 site/hfstatic/build_static.py` (writes `site/hfstatic/dist/`, not committed).
 3. Test (Python): `python3 -m pytest site/hfstatic/tests site/hfspace/tests site/hfvault/tests`.
 4. Test (browser UI, Node): `node site/hfstatic/tests/test_static.js`.
-5. Deploy the Space: `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfstatic/deploy_static.py` (dry run first with `--dry-run`; see `site/hfstatic/SETUP.md`).
-6. Upload clips: `python3 site/hfvault/with_vault_creds.py -- python3 site/hfvault/vault_sync.py ...` (see `site/hfvault/VAULT-SYNC.md`).
+5. Deploy the Space: `python3 site/hfvault/with_bw_creds.py -- python3 site/hfstatic/deploy_static.py` (dry run first with `--dry-run`; see `site/hfstatic/SETUP.md`).
+6. Upload clips: `python3 site/hfvault/with_bw_creds.py -- python3 site/hfvault/vault_sync.py ...` (see `site/hfvault/VAULT-SYNC.md`).
 7. Tokens and passwords live only in the Claude environment and the private key dataset; never in this repo.
 8. Runbook and security notes: `clip-vault-project/RUNBOOK.md`, `clip-vault-project/SECURITY.md`.

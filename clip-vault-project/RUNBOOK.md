@@ -6,7 +6,7 @@ Secrets policy (D29): Claude/deploy credentials stay in Claude environment varia
 
 ## 1. Upload clips (about 10 min; same in both modes)
 1. Prereqs: `kaggle` CLI in `~/kvenv` (with `six`, `python-slugify`), `pdftotext` (`apt-get install -y poppler-utils`), `pip install huggingface_hub cryptography`.
-2. `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfvault/build_hfvault.py <scratch>/vault Soverellp/clip-vault --upload` (`--stream <date>` filters).
+2. `python3 site/hfvault/with_bw_creds.py -- python3 site/hfvault/build_hfvault.py <scratch>/vault Soverellp/clip-vault --upload` (`--stream <date>` filters).
 3. Verify names/sizes only: list `clips/` in the dataset; expect one `.mp4` and one `.jpg` per clip.
 4. Timeout: retry up to 4 times (uploaded files are skipped), then by stream, then STOP and tell the user; never lower quality.
 
@@ -51,7 +51,7 @@ Not deployed. Everything below is as written for the server design and was never
 0. On this account a Docker Space cannot be created without the PRO plan (HTTP 402, D23).
 1. Google client (already made, see [GOOGLE-CONFIG.md](GOOGLE-CONFIG.md); steps to recreate): console.cloud.google.com > OAuth consent screen > Credentials > Web client > authorized JavaScript origin `https://soverellp-clip-vault-site.hf.space`. Client id is public.
 2. Environment names to set (values never in chat): `HF_Token`, `VAULT_READ_TOKEN`, `VAULT_WRITE_TOKEN`, `ADMIN_EMAILS`, `GOOGLE_CLIENT_ID`, optional `ALLOWED_EMAILS`, `SESSION_SECRET`. Start a NEW session after changing the environment.
-3. `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfspace/deploy_space.py` (sets `VAULT_READ_TOKEN`, `VAULT_WRITE_TOKEN` if exported, `SESSION_SECRET`, `VAULT_DATASET`, `ALLOWED_EMAILS`, `ADMIN_EMAILS` and the variable `GOOGLE_CLIENT_ID`; per `site/hfspace/SETUP.md`).
+3. `python3 site/hfvault/with_bw_creds.py -- python3 site/hfspace/deploy_space.py` (sets `VAULT_READ_TOKEN`, `VAULT_WRITE_TOKEN` if exported, `SESSION_SECRET`, `VAULT_DATASET`, `ALLOWED_EMAILS`, `ADMIN_EMAILS` and the variable `GOOGLE_CLIENT_ID`; per `site/hfspace/SETUP.md`).
 4. Permission error: create the Space by hand (Docker, Blank, public, `clip-vault-site`), give the token write access, rerun.
 5. Test: URL opens; listed account signs in; unlisted refused; clip plays and downloads; no token in browser storage; after first request read the log line `proxy-shape: ...` and adjust `_ip()` if needed.
 

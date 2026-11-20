@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Sync the finished clips (streams/index.json + streams/<s>/clips/<id>/) into the PRIVATE dataset Soverellp/clip-vault.
 
-One command, no wrapper prefix: the write token is loaded IN MEMORY by with_vault_creds.load_credentials (or taken from
-the environment) and goes only into huggingface_hub's HfApi(token=...). It is never put into os.environ, argv, a file or a
+Run through the Bitwarden wrapper (`python3 site/hfvault/with_bw_creds.py --only HF_Token -- python3 site/hfvault/vault_sync.py ...`),
+which puts HF_Token (or VAULT_WRITE_TOKEN) into this process's environment; LEGACY fallback without the wrapper: the token is
+loaded IN MEMORY by with_vault_creds.load_credentials (the Kaggle credential dataset) and goes only into huggingface_hub's HfApi(token=...). It is never put into os.environ, argv, a file or a
 child process, and every printed line and every exception text is masked. See site/hfvault/VAULT-SYNC.md.
 
   python3 site/hfvault/vault_sync.py [--stream SUBSTR] [--limit N]          dry run (default): table + the exact --yes command
@@ -11,7 +12,7 @@ child process, and every printed line and every exception text is masked. See si
       of streams/<s>/docs/vault_meta.json, the streams[] list and streams/<id>/thumb.jpg into the EXISTING remote index.json in ONE
       commit (parent revision), never touching title, desc, post, tags, trash state or admin-edited hook/stream; audit line; verify.
 
-Options: --hf-dataset OWNER/NAME (default Soverellp/clip-vault)  --dataset USER/NAME (the KAGGLE credential dataset,
+Options: --hf-dataset OWNER/NAME (default Soverellp/clip-vault)  --dataset USER/NAME (LEGACY: the KAGGLE credential dataset,
 default arvr7plays/kagglegpu1)  --from-dir DIR (read the credential file from a folder, for tests)  --repo DIR (repo root).
 Exit codes: 0 ok, 2 nothing to do, 1 error.
 """
@@ -112,7 +113,7 @@ def get_credentials(kaggle_dataset=None, from_dir=None, allow_account_token=Fals
         elif vals.get("HF_Token"):
             write, scoped, source = vals["HF_Token"], False, "credential file key " + c["names"]["HF_Token"]
     if not write:
-        raise SyncError("no write token found (env VAULT_WRITE_TOKEN / HF_Token, or file key VAULT_WRITE_TOKEN / Clip_vault_Write / HF_Token)")
+        raise SyncError("no write token found (env VAULT_WRITE_TOKEN / HF_Token: run through `python3 site/hfvault/with_bw_creds.py --only HF_Token -- python3 site/hfvault/vault_sync.py ...`; legacy: credential file key)")
     MASK.add(wc.collect_secrets({"VAULT_WRITE_TOKEN": write, **({"VAULT_READ_TOKEN": read} if read else {})}, set()))
     if not write.startswith("hf_"): raise SyncError("the write token does not look like an hf_ token")
     if read and read == write: raise SyncError("the write token equals the read token: create a separate dataset-scoped write token")
@@ -121,7 +122,7 @@ def get_credentials(kaggle_dataset=None, from_dir=None, allow_account_token=Fals
             raise SyncError("refusing the account-wide HF_Token (" + source + "): create a dataset-scoped write token "
                             "(env VAULT_WRITE_TOKEN or file key VAULT_WRITE_TOKEN / Clip_vault_Write). To knowingly use the "
                             "account token anyway, pass --allow-account-token")
-        warn("account-wide token allowed by --allow-account-token: create a dataset-scoped write token (file key VAULT_WRITE_TOKEN)")
+        warn("account-wide token allowed by --allow-account-token: create a dataset-scoped write token (Bitwarden item VAULT_WRITE_TOKEN)")
     say(f"write token: {source}" + ("" if scoped else " (account-wide)"))
     return write
 
@@ -679,7 +680,7 @@ def parser():
     p.add_argument("--limit", type=int, default=None, help="at most N clips to upload")
     p.add_argument("--hf-dataset", default=HF_DATASET)
     p.add_argument("--dataset", default=None, help="Kaggle credential dataset (default " + wc.DEFAULT_DATASET + ")")
-    p.add_argument("--from-dir", default=None, help="read the credential file from this folder (tests)")
+    p.add_argument("--from-dir", default=None, help="LEGACY: read the credential file from this folder (tests)")
     p.add_argument("--meta-only", action="store_true",
                    help="only merge the Library metadata (vault_meta.json fields, streams[], thumbnails) into the existing remote index (dry run unless --yes)")
     p.add_argument("--refresh-text", action="store_true",

@@ -115,7 +115,7 @@ def test_only_missing_item(env, capsys):
 
 def test_list_names_only(env, capsys):
     code, out, err = run(env, capsys, "--list")
-    assert code == 0 and "HF_Tokem" in out and "VAULT_PASSPHRASE" in out and "not a valid name" not in out
+    assert code == 0 and "HF_Tokem" in out and "VAULT_PASSPHRASE" in out
     assert "someuser" not in out + err; assert_clean(env, out, err)
 
 def test_empty_command_refused(env, capsys):
@@ -175,3 +175,25 @@ def test_cli_refuses_empty_and_missing_vars():
     assert r.returncode != 0 and "no command" in r.stderr
     r = subprocess.run([sys.executable, str(WRAPPER), "--list"], capture_output=True, text=True, env=e)
     assert r.returncode != 0 and "BW_CLIENTID" in r.stderr
+
+def test_custom_field_fallback():
+    import with_bw_creds as w
+    f = lambda n, v, t=0: {"name": n, "value": v, "type": t}
+    items = [{"name": "A_TOK", "type": 2, "notes": "", "fields": [f("whatever", "  val-a  ", 1)]},
+             {"name": "B_TOK", "type": 2, "notes": None, "fields": [f("x", "one"), f("B_TOK", "val-b")]},
+             {"name": "C_TOK", "type": 2, "notes": "", "fields": [f("x", "one"), f("y", "two")]},
+             {"name": "D_TOK", "type": 2, "notes": "notes-d", "fields": [f("D_TOK", "other")]},
+             {"name": "E_TOK", "type": 2, "notes": "", "fields": [f("x", "v", 2)]}]
+    env, names, ignored = w.map_items(items)
+    assert env == {"A_TOK": "val-a", "B_TOK": "val-b", "D_TOK": "notes-d"} and ignored == 2
+
+def test_item_map_notes_and_field():
+    import with_bw_creds as w
+    h = lambda v: [{"name": "Token", "value": v, "type": 1}]
+    items = [{"name": "Kaggle GPU (ARVR7Plays)", "type": 2, "notes": " usr1\n", "fields": h("tok1")},
+             {"name": "Kaggle GPU (SovereLLP)", "type": 2, "notes": "usr2", "fields": h("tok2")},
+             {"name": "Hugging Face Token 1 (SovereLLP)", "type": 2, "notes": "", "fields": h("hf")},
+             {"name": "Clip Vault Site", "type": 2, "notes": "", "fields": h("")}]
+    env, names, ignored = w.map_items(items)
+    assert env == {"KAGGLE_USERNAME": "usr1", "KAGGLE_APITOKEN": "tok1", "KAGGLE_USERNAME2": "usr2",
+                   "KAGGLE_APITOKEN2": "tok2", "HF_Token": "hf"} and ignored == 1

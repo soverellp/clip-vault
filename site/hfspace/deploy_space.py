@@ -13,8 +13,8 @@ Optional:
   VAULT_DATASET      default Soverellp/clip-vault -> Space SECRET
   SPACE_ID           default Soverellp/clip-vault-site
 
-Usage (with_vault_creds injects only HF_Token, VAULT_READ_TOKEN, VAULT_PASSPHRASE; export the rest first):
-  python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfspace/deploy_space.py
+Usage (with_bw_creds injects the Bitwarden items; export the rest first):
+  python3 site/hfvault/with_bw_creds.py -- python3 site/hfspace/deploy_space.py
 A generated SESSION_SECRET is created per run, which signs everybody out (fine). The Space is public (friends open the
 page); it holds no clips and no Google secret. Prints only names and OK/ERROR.
 """
