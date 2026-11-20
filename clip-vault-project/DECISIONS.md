@@ -8,6 +8,14 @@ Reading guide after D23: D9, D11-D16, D18 and D22 describe the SERVER MODE (save
 
 ---
 
+## D44. Shortlist changeable by anyone who unlocks the site (no admin mode): shortlist token inside the passphrase-encrypted config
+- **Date:** 2026-11-20
+- **Decision:** `config.json` carries a second secret `sl` (shortlist writer token, same PBKDF2 key, own random iv, plus `dataset` and `path` in the clear). After unlocking, any friend stars or unstars a moment: one commit at the parent revision to the shortlist file plus an audit line (`actor: shortlist`). Clip reads keep the read-only token; admin mode is unchanged. Supersedes the "admin-only" part of D43.
+- **Options:** (a) separate tiny dataset `Soverellp/clip-vault-shortlist` with a token scoped to ONLY it (the safe design; supported by `--shortlist-dataset`, tested with a mock, NOT created: no such token exists); (b) keep `_config/shortlist.json` in the clip dataset (chosen).
+- **Why:** owner: no new token, "I am not concerned about that security". The environment has `Clip_vault_HFToken` (fine-grained READ-only on the clip dataset: cannot write), `HF_Tokem` (fine-grained, `repo.write` on `Soverellp/clip-vault` AND on the whole user namespace, i.e. effectively account-wide write) and `HF_Token_backup` (account write). Only `HF_Tokem` can write, so it is the shortlist token.
+- **Consequences:** anyone with the passphrase who decrypts config.json can also read that token and write ANY of the owner's repos (clips, other datasets, spaces). The passphrase now guards write access, not just reading. Reversible: rebuild the config without `VAULT_SHORTLIST_TOKEN` (shortlist goes read-only), rotate the token, or move to option (a) later. Tests: site/hfstatic/tests/test_shortlist.js (55 checks, mock Hub), test_build.py. NOT proven on the real Hub or a real browser. The real config is NOT rebuilt yet: run `bash site/hfstatic/deploy_config.sh` with `VAULT_PASSPHRASE` set (verifies decrypt before upload).
+- **Status:** Accepted (code ready, config deploy pending the passphrase).
+
 ## D43. Shortlist: admin-only star per moment, `_config/shortlist.json`, visible to every friend
 - **Date:** 2026-11-20
 - **Status:** Accepted, built in the static site, tested with the MOCKED Hub only (node pure 12, browser 40, pytest +8); deploy as a `--only` patch; NOT yet run on the live vault or a real phone.
