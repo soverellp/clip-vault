@@ -61,7 +61,7 @@ export const timeKey = f => f.clipped || f.date || '';
 const cmpNewest = (a, b) => timeKey(b).localeCompare(timeKey(a)) || (b.date || '').localeCompare(a.date || '') || a.title.localeCompare(b.title);
 const sizeOf = f => f.clips.reduce((n, c) => n + (Number(c.size) || 0), 0);
 export const HOME_SORTS = { clipped: cmpNewest, oldest: (a, b) => timeKey(a).localeCompare(timeKey(b)) || (a.date || '').localeCompare(b.date || '') || a.title.localeCompare(b.title),
-  clips: (a, b) => b.clips.length - a.clips.length || cmpNewest(a, b), biggest: (a, b) => sizeOf(b) - sizeOf(a) || cmpNewest(a, b) };
+  clips: (a, b) => b.clips.length - a.clips.length || cmpNewest(a, b), biggest: (a, b) => sizeOf(b) - sizeOf(a) || cmpNewest(a, b), title: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) };
 export function foldersOf(clips, metas = [], sort = 'clipped') {
   const by = new Map();
   for (const s of metas) if (s && typeof s.id === 'string') by.set(s.id, { id: s.id, title: s.title || pretty(s.id), channel: s.channel || '', date: s.date || dateOfId(s.id), clipped: s.clipped_at || '', lang: s.lang && s.lang !== 'unknown' ? s.lang : '', langName: s.lang_name || '', url: s.url || '', thumb: s.thumb || null, clips: [] });

@@ -162,3 +162,11 @@
 .lbtn[aria-pressed="true"] .n{background:rgba(0,0,0,.2);color:inherit}
 .lbtn{flex:0 1 auto}
 .lang-tag,.f-lang{display:inline-block;width:max-content;max-width:100%;padding:2px 10px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--muted);font:700 .75rem var(--font);letter-spacing:.04em}
+/* D46: one-row sort control (labelled select) and posted-on badges */
+.vsort{flex-wrap:nowrap;align-items:center;gap:10px}
+.vsort-lab{flex:none;font-size:.8rem;font-weight:700;color:var(--muted,inherit)}
+.vsort select{flex:1 1 auto;min-width:0;min-height:44px;padding:0 12px;border-radius:12px;border:1px solid var(--line);background:var(--panel);color:inherit;font:inherit;font-weight:600}
+.po-badges{display:inline-flex;flex-wrap:wrap;gap:4px;vertical-align:middle}
+.po-badges[hidden]{display:none}
+.po-badge{display:inline-block;padding:1px 7px;border-radius:999px;border:1px solid var(--line);background:var(--panel);font-size:.68rem;font-weight:600;line-height:1.5}
+.po-checks{display:flex;flex-wrap:wrap;gap:6px 16px}

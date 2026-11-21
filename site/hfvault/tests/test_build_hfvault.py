@@ -257,14 +257,15 @@ def test_old_page_validates_dataset_paths_like_hubapi():
 
 
 # ------------------------------------------------------------------ Library metadata helpers (D39)
-def test_normalize_meta_posted_by_optional_trimmed_and_limited():
+def test_normalize_meta_posted_on_optional_and_validated():
     import build_hfvault as bh
-    assert "posted_by" not in bh.normalize_meta({"group": "g"}, "s")            # old data without the field stays valid
-    assert "posted_by" not in bh.normalize_meta({"posted_by": "  "}, "s")
-    assert bh.normalize_meta({"posted_by": "  Im   Goochy "}, "s")["posted_by"] == "Im Goochy"
-    for bad in ({"posted_by": 5}, {"posted_by": "x" * 41}):
+    assert "posted_on" not in bh.normalize_meta({"group": "g"}, "s")            # old data without the field stays valid
+    assert "posted_on" not in bh.normalize_meta({"posted_by": "Someone"}, "s")  # the old posted_by is ignored
+    assert bh.normalize_meta({"posted_on": []}, "s")["posted_on"] == []
+    assert bh.normalize_meta({"posted_on": ["tiktok", "youtube"]}, "s")["posted_on"] == ["youtube", "tiktok"]
+    for bad in ({"posted_on": "youtube"}, {"posted_on": ["facebook"]}, {"posted_on": [1]}):
         with pytest.raises(ValueError): bh.normalize_meta(bad, "s")
-    assert "posted_by" in bh.META_FILL_ONLY                                      # an admin edit in the site is never overwritten by a sync
+    assert "posted_on" in bh.META_FILL_ONLY                                      # an admin edit in the site is never overwritten by a sync
 
 
 def test_normalize_meta_defaults_limits_and_enums():

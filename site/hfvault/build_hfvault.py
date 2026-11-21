@@ -99,7 +99,7 @@ def prepare_out_dir(out):
 
 UNSAFE_ID = re.compile(r"[^A-Za-z0-9_.\-]")
 # fields an admin may have edited in the site (or that the site owns): on a re-run the REMOTE value wins for ids that already exist
-REMOTE_WINS = ("title", "hook", "desc", "post", "tags", "stream", "posted_by", "added_at", "trashed_at", "purge_after")
+REMOTE_WINS = ("title", "hook", "desc", "post", "tags", "stream", "posted_by", "posted_on", "added_at", "trashed_at", "purge_after")
 
 def safe_id(i):
     return UNSAFE_ID.sub("_", str(i))
@@ -159,10 +159,11 @@ VARIANTS = ("with-streamer", "with-girl", "clean", "face-top")
 TIERS = ("A", "B", "C")
 KINDS = ("reaction", "game")
 # every contract field a clip entry may carry (all optional; old clients ignore them)
-META_FIELDS = ("stream", "group", "variant", "reaction", "reaction_note", "kind", "tier", "rank", "why", "hook", "clipped_at", "lang", "posted_by")
+META_FIELDS = ("stream", "group", "variant", "reaction", "reaction_note", "kind", "tier", "rank", "why", "hook", "clipped_at", "lang", "posted_on")
 # edited in the site by admins (D39): vault_sync only FILLS these when the remote value is empty, never overwrites
-META_FILL_ONLY = ("stream", "hook", "posted_by")
-META_LIMITS = {"reaction_note": 80, "why": 110, "posted_by": 40}
+META_FILL_ONLY = ("stream", "hook", "posted_on")
+META_LIMITS = {"reaction_note": 80, "why": 110}
+PLATFORMS = ("youtube", "instagram", "tiktok", "x", "other")   # fixed list for posted_on (D46); labels live in the site
 STREAM_ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,200}$")
 
 def _one_line(s, limit=None):
@@ -196,12 +197,10 @@ def normalize_meta(raw, stream=None):
     m["kind"] = kind
     m["why"] = _one_line(raw.get("why"), META_LIMITS["why"])
     if raw.get("hook"): m["hook"] = _one_line(raw["hook"])
-    pb = raw.get("posted_by")  # optional free text (a person's name or the original uploader); absent/empty = Unassigned
-    if pb is not None:
-        if not isinstance(pb, str): raise ValueError(f"posted_by {pb!r} must be a string")
-        pb = _one_line(pb)
-        if len(pb) > META_LIMITS["posted_by"]: raise ValueError(f"posted_by is longer than {META_LIMITS['posted_by']} characters")
-        if pb: m["posted_by"] = pb
+    po = raw.get("posted_on")  # optional list of platform keys; absent = old data, valid. The old posted_by is ignored (D46).
+    if po is not None:
+        if not isinstance(po, list) or any(not isinstance(x, str) or x not in PLATFORMS for x in po): raise ValueError(f"posted_on {po!r} must be a list of {PLATFORMS}")
+        m["posted_on"] = [p for p in PLATFORMS if p in po]
     ca = raw.get("clipped_at")
     if ca is not None:
         if not isinstance(ca, str) or not re.fullmatch(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ", ca): raise ValueError(f"clipped_at {ca!r} must be YYYY-MM-DDTHH:MM:SSZ (UTC)")

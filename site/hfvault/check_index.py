@@ -30,9 +30,9 @@ def main(argv=None):
         n = sum(1 for c in clips if c.get(k) not in (None, ""))
         print(f"clips with {k}: {n}/{len(clips)}")
         if n != len(clips) and k != "why": bad.append(k)
-    pbs = [c.get("posted_by") for c in clips if c.get("posted_by") not in (None, "")]  # optional field: old data without it stays valid
-    print(f"clips with posted_by (optional): {len(pbs)}/{len(clips)}")
-    if any(not isinstance(v, str) or len(v) > 40 for v in pbs): bad.append("posted_by")
+    pos = [c.get("posted_on") for c in clips if c.get("posted_on") is not None]  # optional field: old data without it stays valid
+    print(f"clips with posted_on (optional): {len(pos)}/{len(clips)}")
+    if any(not isinstance(v, list) or any(x not in ("youtube", "instagram", "tiktok", "x", "other") for x in v) for v in pos): bad.append("posted_on")
     print("reactions:", {r: sum(1 for c in clips if c.get("reaction") == r) for r in ("strong", "mild", "none", "unrated")})
     print("ranked:", sorted(c["rank"] for c in clips if c.get("rank") and c.get("variant") == "with-girl"))
     ids = {s["id"] for s in streams}

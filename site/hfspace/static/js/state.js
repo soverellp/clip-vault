@@ -2,7 +2,7 @@
 export const state = {
   me: null, authChecked: false,
   clips: [], trash: [], counts: { active: 0, trash: 0 }, loaded: false, loadError: false, trashLoaded: false,
-  view: 'library', mode: 'grid', sort: 'newest', streams: new Set(), postedBy: new Set(), tags: new Set(), minScore: 0, q: '',
+  view: 'library', mode: 'grid', sort: 'newest', streams: new Set(), postedOn: new Set(), tags: new Set(), minScore: 0, q: '',
   selecting: false, selected: new Set(),
   queue: 'all', post: 'any', shortlist: [], shortlistOnly: false, group: false, collapsed: new Set(), feedIds: [],
   folders: [], folder: null, cat: 'all', variants: new Map(), sortTouched: false, filterOpen: false, homeSort: 'clipped', homeFilter: new Set(), lang: '', libHash: '#/',

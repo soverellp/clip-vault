@@ -3,7 +3,7 @@ import { h, btn, icon } from './dom.js';
 import * as api from './api.js';
 import { toast } from './toast.js';
 import { createModal, haptic, shake, announce } from './a11y.js';
-import { titleOf, norm } from './fmt.js';
+import { titleOf, norm, postedOnOf, PLATFORMS } from './fmt.js';
 import { exact, timeEl } from './time.js';
 import { loadAll } from './data.js';
 
@@ -151,8 +151,8 @@ export function editForm(clip, { close }) {
   const init = { title: clip.title || '', hook: clip.hook || '', desc: clip.desc || '', post: clip.post || '', stream: clip.stream || '', tags: (clip.tags || []).join(', ') };
   // Library fields (reaction, kind, tier, why): only offered when the backend can store them (static mode, me().capabilities.moments).
   const moments = state.me?.capabilities?.moments === true;
-  const MKEYS = ['reaction', 'kind', 'tier', 'why', 'posted_by'];
-  if (moments) for (const k of MKEYS) init[k] = clip[k] == null ? '' : String(clip[k]);
+  const MKEYS = ['reaction', 'kind', 'tier', 'why'];
+  if (moments) { for (const k of MKEYS) init[k] = clip[k] == null ? '' : String(clip[k]); init.posted_on = postedOnOf(clip).join(','); }
   const sibling = moments && clip.group ? state.clips.find(x => x.id !== clip.id && x.group === clip.group && (x.stream || '') === (clip.stream || '')) : null;
   const cur = { ...init, ...(d?.vals || {}) };
   const mk = (key, label, type, opts = {}) => {
@@ -170,10 +170,16 @@ export function editForm(clip, { close }) {
     const sel = (key, label, vals) => mk(key, label, 'select', { options: [['', 'Not set'], ...vals.map(v => [v, v])] });
     F.reaction = sel('reaction', 'Streamer reaction', ['strong', 'mild', 'none', 'unrated']); F.kind = sel('kind', 'Category', ['reaction', 'game']); F.tier = sel('tier', 'Tier (A = best)', ['A', 'B', 'C']);
     F.why = mk('why', 'Why (one line)', 'input', { max: 300 });
-    F.posted_by = mk('posted_by', 'Posted by (name, max 40)', 'input', { max: 40 });
+    // Posted on: one checkbox per platform; the field's value is the comma list of checked keys, so the dirty check and draft restore work like the text fields.
+    const boxes = PLATFORMS.map(([k, l]) => { const cb = h('input', { type: 'checkbox', id: 'ef-po-' + k, value: k }); return { k, cb, lab: h('label', { class: 'check-row', for: 'ef-po-' + k }, cb, h('span', { text: l })) }; });
+    const grp = h('div', { id: 'ef-posted_on', class: 'po-checks', role: 'group', 'aria-label': 'Posted on' }, ...boxes.map(b => b.lab));
+    Object.defineProperty(grp, 'value', { get: () => boxes.filter(b => b.cb.checked).map(b => b.k).join(','), set: v => { const on = String(v || '').split(','); for (const b of boxes) b.cb.checked = on.includes(b.k); } });
+    grp.value = cur.posted_on; grp.dataset.key = 'posted_on';
+    const pe = h('p', { class: 'field-err', id: 'ef-posted_on-e', role: 'alert' });
+    F.posted_on = { el: grp, e: pe, wrap: h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Posted on' }), grp, pe) };
   }
   const both = sibling ? h('input', { type: 'checkbox', id: 'ef-both', checked: true }) : null;
-  const form = h('form', { class: 'edit', novalidate: '', 'aria-label': 'Edit clip' }, dl, ...Object.values(F).map(f => f.wrap), both ? h('label', { class: 'check-row' }, both, h('span', { text: 'Apply reaction, category, tier, why and posted by to both versions' })) : null);
+  const form = h('form', { class: 'edit', novalidate: '', 'aria-label': 'Edit clip' }, dl, ...Object.values(F).map(f => f.wrap), both ? h('label', { class: 'check-row' }, both, h('span', { text: 'Apply reaction, category, tier, why and posted on to both versions' })) : null);
   const status = h('p', { class: 'form-err', role: 'alert' }), dirtyNote = h('span', { class: 'dirty', text: '' });
   if (d?.error) status.textContent = d.error;
   const save = btn('Save changes', { kind: 'primary', type: 'submit' }), cancel = btn('Cancel', { kind: 'ghost', on: () => { if (dirty()) discard(); else close(); } });
@@ -198,7 +204,7 @@ export function editForm(clip, { close }) {
   form.addEventListener('submit', async e => {
     e.preventDefault(); if (!validate() || !dirty()) return;
     const v = vals(), body = { title: v.title.trim(), hook: v.hook.trim(), desc: v.desc, post: v.post, stream: v.stream.trim(), tags: splitTags(v.tags) };
-    const mbody = {}; if (moments) for (const k of MKEYS) if (v[k] !== init[k]) mbody[k] = v[k];
+    const mbody = {}; if (moments) { for (const k of MKEYS) if (v[k] !== init[k]) mbody[k] = v[k]; if (v.posted_on !== init.posted_on) mbody.posted_on = v.posted_on ? v.posted_on.split(',') : []; }
     Object.assign(body, mbody);
     const before = clip, next = { ...clip, ...body };
     replaceClip(next); emit('clips'); draft = null;   // optimistic

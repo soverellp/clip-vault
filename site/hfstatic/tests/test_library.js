@@ -85,7 +85,7 @@ const server = http.createServer((q, r) => {
       // ---- keyboard order on the home screen
       await page.focus('#q'); const order = [];
       for (let i = 0; i < 3; i++) { await page.keyboard.press('Tab'); order.push(await page.evaluate(() => document.activeElement.id || document.activeElement.className.split(' ')[0])); }
-      ok(order.join() === 'filter-btn,post-mode-btn,sbtn', 'Tab order on home: search, Filter, Post mode, the visible sort buttons (' + order.join(',') + ')');
+      ok(order.join() === 'filter-btn,post-mode-btn,vsort-sel', 'Tab order on home: search, Filter, Post mode, the visible sort select (' + order.join(',') + ')');
       await page.focus('.folder-link');
       ok(await page.evaluate(() => document.activeElement.matches(':focus-visible')), 'keyboard focus is visible on a folder card');
       await page.keyboard.press('Enter'); await page.waitForSelector('.cats .cat');
@@ -138,7 +138,7 @@ const server = http.createServer((q, r) => {
       await page.evaluate(() => { location.hash = '#/'; }); await page.waitForSelector('.folder-grid .folder');
       ok(!(await page.isVisible('#filter-panel')) && (await page.getAttribute('#filter-btn', 'aria-expanded')) === 'false', 'sort, view, grouping and filters are collapsed behind one Filter button');
       ok(!(await page.isVisible('#sort')) && !(await page.isVisible('#group-btn')) && !(await page.isVisible('.qseg')) && !(await page.isVisible('.hf-chip')), 'no group/queue/home-filter controls on the page until Filter is opened; the old sort select is gone on the moment screens');
-      ok(await page.isVisible('#vsort') && (await texts(page, '#vsort .sbtn')).join('|') === 'Newest clipped|Oldest|Most clips|Biggest', 'the sort control is visible outside Filter: Newest clipped | Oldest | Most clips | Biggest');
+      ok(await page.isVisible('#vsort') && (await texts(page, '#vsort-sel option')).join('|') === 'Newest clipped|Oldest clipped|Most clips|Biggest|Title A-Z', 'the sort select is visible outside Filter, home options: Newest clipped | Oldest clipped | Most clips | Biggest | Title A-Z');
       await page.click('#filter-btn'); ok(await page.isVisible('.hf-chip') && !(await page.isVisible('#sort')) && (await page.getAttribute('#filter-btn', 'aria-expanded')) === 'true', 'Filter opens the panel (home options: streamer reactions, best picks, tags and score)');
       await shot(page, 'mobile-dark-filter-menu');
       ok(await noHScroll(page), 'no horizontal scroll with the filter menu open (390 px)');
@@ -170,17 +170,17 @@ const server = http.createServer((q, r) => {
     {
       const hub = hubWith(FX.indexClipped()); const { ctx, page } = await session(hub);
       const order = () => page.$$eval('.folder-grid .folder', (e) => e.map((x) => x.dataset.stream));
-      const pressed = () => page.$eval('#vsort .sbtn[aria-pressed="true"]', (e) => e.textContent);
+      const pressed = () => page.$eval('#vsort-sel', (e) => e.selectedOptions[0].textContent), pick = (v) => page.selectOption('#vsort-sel', v);
       ok((await order()).join() === [S2, S1].join(), 'home order follows clipped_at: the stream with the OLDER YouTube date but clipped later comes first');
       ok(JSON.stringify(await texts(page, '.folder .f-meta')) === JSON.stringify(['Clipped 19 Nov, 16:30 2 moments 58.0 MB Hindi', 'Clipped 14 Nov, 12:00 2 moments 76.0 MB English']), 'folder cards show the clipped date and time and the language (' + (await texts(page, '.folder .f-meta')).join(' / ') + ')');
-      ok((await pressed()) === 'Newest clipped' && await page.$$eval('#vsort .sbtn', (e) => e.length === 4 && e.every((x) => x.getBoundingClientRect().height >= 44)), 'default sort Newest clipped; four buttons, each at least 44 px tall');
-      await page.click('#vsort .sbtn[data-sort="oldest"]'); ok((await order()).join() === [S1, S2].join() && (await pressed()) === 'Oldest', 'Oldest reverses the folder order');
-      await page.click('#vsort .sbtn[data-sort="clips"]'); ok((await order()).join() === [S1, S2].join() && (await pressed()) === 'Most clips', 'Most clips: 4 clips before 3');
-      await page.click('#vsort .sbtn[data-sort="biggest"]'); ok((await order()).join() === [S1, S2].join() && (await pressed()) === 'Biggest', 'Biggest: 76 MB before 58 MB');
-      await page.click('#vsort .sbtn[data-sort="clipped"]'); ok((await order()).join() === [S2, S1].join(), 'back to Newest clipped');
-      await page.focus('#vsort .sbtn[data-sort="oldest"]'); await page.keyboard.press('Enter');
-      ok((await order()).join() === [S1, S2].join() && (await page.evaluate(() => document.activeElement.dataset.sort)) === 'oldest', 'the sort buttons work from the keyboard and keep focus');
-      await page.click('#vsort .sbtn[data-sort="clipped"]');
+      ok((await pressed()) === 'Newest clipped' && await page.$eval('#vsort-sel', (e) => e.getBoundingClientRect().height >= 44), 'default sort Newest clipped; the select is at least 44 px tall');
+      await pick('oldest'); ok((await order()).join() === [S1, S2].join() && (await pressed()) === 'Oldest clipped', 'Oldest reverses the folder order');
+      await pick('clips'); ok((await order()).join() === [S1, S2].join() && (await pressed()) === 'Most clips', 'Most clips: 4 clips before 3');
+      await pick('biggest'); ok((await order()).join() === [S1, S2].join() && (await pressed()) === 'Biggest', 'Biggest: 76 MB before 58 MB');
+      await pick('clipped'); ok((await order()).join() === [S2, S1].join(), 'back to Newest clipped');
+      await page.focus('#vsort-sel'); await page.keyboard.press('ArrowDown');
+      ok((await page.evaluate(() => document.activeElement.id)) === 'vsort-sel', 'the sort select keeps focus after a change');
+      await pick('clipped');
       // language chips
       ok((await texts(page, '#langbar .lbtn .lbl')).join('|') === 'All languages|English|Hindi' && await page.$$eval('#langbar .lbtn', (e) => e.every((x) => x.getBoundingClientRect().height >= 44)), 'language chips: All languages | English | Hindi, 44 px tall');
       await page.click('#langbar .lbtn[data-lang="hi"]'); ok((await order()).join() === S2 && (await page.textContent('.page-sub')).startsWith('1 stream'), 'Hindi shows only the Hindi stream and the summary follows');
@@ -197,11 +197,13 @@ const server = http.createServer((q, r) => {
       await page.click('#filter-btn');
       // inside the stream
       await openFolder(page, S1);
-      ok((await texts(page, '#vsort .sbtn')).join('|') === 'Best first|Newest clipped|Longest|Biggest' && (await pressed()) === 'Best first', 'stream: Best first | Newest clipped | Longest | Biggest, default Best first');
+      ok((await texts(page, '#vsort-sel option')).join('|') === 'Newest clipped|Oldest clipped|Best (rank/tier)|Longest|Shortest|Title A-Z|Biggest file|Top score' && (await pressed()) === 'Newest clipped', 'stream: sort options present, default Newest clipped');
       const titles = () => texts(page, 'ul.grid.moments li.card .title');
       await page.click('.cat[data-cat="all"]');
-      ok((await titles()).join('|') === 'He screams when the boss dies|Insane clutch 1v4 on the roof', 'Best first: tier A moment first');
-      await page.click('#vsort .sbtn[data-sort="newest"]'); ok((await titles()).join('|') === 'Insane clutch 1v4 on the roof|He screams when the boss dies' && (await pressed()) === 'Newest clipped', 'Newest clipped: the moment clipped at 12:00 before the one clipped at 09:00');
+      ok((await titles()).join('|') === 'Insane clutch 1v4 on the roof|He screams when the boss dies', 'default newest clipped first (D46): the moment clipped later comes first');
+      await pick('rank'); ok((await titles()).join('|') === 'He screams when the boss dies|Insane clutch 1v4 on the roof', 'Best (rank/tier): tier A moment first');
+      await pick('title'); ok((await titles()).join('|') === 'He screams when the boss dies|Insane clutch 1v4 on the roof', 'Title A-Z');
+      await pick('newest'); ok((await titles()).join('|') === 'Insane clutch 1v4 on the roof|He screams when the boss dies' && (await pressed()) === 'Newest clipped', 'Newest clipped: the moment clipped at 12:00 before the one clipped at 09:00');
       ok((await page.textContent('.lang-tag')) === 'English' && /Clipped 14 Nov, 12:00 · YouTube 18 Nov 2026/.test(await page.textContent('.page-sub')), 'stream header: language tag, clipped time, YouTube date as secondary (' + (await page.textContent('.page-sub')) + ')');
       ok(!(await page.isVisible('#langbar')) && await page.isVisible('#vsort'), 'no language chips inside a stream (one language)');
       // every Filter option inside a stream changes the list
@@ -234,8 +236,8 @@ const server = http.createServer((q, r) => {
       ok(!(await r.page.isVisible('#langbar')) && (await r.page.$$eval('.folder-grid .folder', (e) => e.map((x) => x.dataset.stream))).join() === [S1, S2].join() && await r.page.isVisible('#vsort'), 'old data (no lang, no clipped_at): no language control, folders by YouTube date, sort control still there');
       await r.ctx.close();
       h1 = hubWith(FX.indexClipped()); r = await session(h1, { viewport: { width: 360, height: 740 }, touch: true });
-      ok(await noHScroll(r.page) && await r.page.$$eval('#vsort .sbtn, #langbar .lbtn', (e) => e.length === 7 && e.every((x) => x.getBoundingClientRect().height >= 44 && x.getBoundingClientRect().right <= 360)), '360 px: sort and language buttons fit, no horizontal scroll, 44 px tall');
-      await openFolder(r.page, S1); ok(await noHScroll(r.page) && await r.page.$$eval('#vsort .sbtn', (e) => e.every((x) => x.getBoundingClientRect().height >= 44 && x.getBoundingClientRect().right <= 360)), '360 px stream: sort buttons fit');
+      ok(await noHScroll(r.page) && await r.page.$$eval('#vsort-sel, #langbar .lbtn', (e) => e.length === 4 && e.every((x) => x.getBoundingClientRect().height >= 44 && x.getBoundingClientRect().right <= 360)), '360 px: sort and language buttons fit, no horizontal scroll, 44 px tall');
+      await openFolder(r.page, S1); ok(await noHScroll(r.page) && await r.page.$$eval('#vsort-sel', (e) => e.every((x) => x.getBoundingClientRect().height >= 44 && x.getBoundingClientRect().right <= 360)), '360 px stream: sort buttons fit');
       await r.ctx.close();
     }
     // ================= desktop + light screenshots
@@ -311,40 +313,50 @@ const server = http.createServer((q, r) => {
       ok(prev > 0, 'edit committed (' + prev + ' commit(s), parent-checked)');
       await ctx.close();
     }
-    // ================= "Posted by" filter + edit sanitising (admin edit form, MOCKED Hub)
+    // ================= "Posted on" filter + edit form (D46, MOCKED Hub)
     {
-      const idx = FX.index(); for (const c of idx.clips) { if (c.id.startsWith('a1')) c.posted_by = 'ImGoochy'; else if (c.id.startsWith('b2')) c.posted_by = 'iboclips'; }
+      const idx = FX.index(); for (const c of idx.clips) { if (c.id.startsWith('a1')) c.posted_on = ['youtube', 'tiktok']; else if (c.id.startsWith('b2')) c.posted_on = []; c.posted_by = 'OldName'; }
       const hub = hubWith(idx); const { ctx, page } = await session(hub);
       await openFolder(page, S1);
-      const kinds = () => page.$$eval('.chip[data-kind="postedby"] .lbl', (e) => e.map((x) => x.textContent));
       await page.click('#filter-btn').catch(() => {}); await sleep(300);
-      const labs = await kinds();
-      ok(labs.join() === 'ImGoochy,iboclips' || labs.join() === 'iboclips,ImGoochy' || (labs.includes('ImGoochy') && labs.includes('iboclips')), 'posted by: one chip per distinct value (' + labs.join('/') + ')');
+      ok((await page.$$eval('.chip[data-kind="postedon"] .lbl', (e) => e.map((x) => x.textContent))).join() === 'YouTube,Instagram,TikTok,X,Other,Not posted', 'posted on: chips YouTube / Instagram / TikTok / X / Other / Not posted');
+      ok((await page.$$eval('.chip[data-kind="postedon"][aria-pressed="true"]', (e) => e.length)) === 0 && (await page.$$eval('.chip[data-kind="postedby"]', (e) => e.length)) === 0, 'posted on: default no chip selected; no posted-by UI');
       const nCards = () => page.$$eval('ul.grid.moments li.card', (e) => e.length);
       await page.click('.cat[data-cat="all"]'); await sleep(300);
-      const all0 = await nCards();
-      await page.click('.chip[data-kind="postedby"]:has(.lbl:text-is("ImGoochy"))'); await sleep(400);
-      ok(await nCards() === 1 && all0 > 1, 'posted by: selecting a name keeps only that person\'s moments');
-      ok(await page.$eval('ul.grid.moments li.card .by', (e) => e.textContent === 'by ImGoochy' && !e.hidden), 'posted by: small label on the card');
-      await page.click('.chip[data-kind="postedby"]:has(.lbl:text-is("ImGoochy"))'); await sleep(300);
-      ok(await nCards() === all0, 'posted by: deselecting shows everything again');
+      const all0 = await nCards(), chip = (l) => `.chip[data-kind="postedon"]:has(.lbl:text-is("${l}"))`;
+      await page.click(chip('YouTube')); await sleep(300);
+      const yt = await nCards(); ok(yt >= 1 && yt < all0, 'posted on: YouTube keeps only clips posted on YouTube (' + yt + '/' + all0 + ')');
+      await page.click(chip('Instagram')); await sleep(300);
+      ok((await nCards()) >= yt, 'posted on: several chips = ANY match');
+      await page.click(chip('YouTube')); await page.click(chip('Instagram')); await page.click(chip('Not posted')); await sleep(300);
+      ok((await nCards()) >= 1 && (await nCards()) < all0, 'posted on: Not posted = empty/absent list');
+      await page.click(chip('Not posted')); await sleep(300);
+      ok(await nCards() === all0, 'posted on: deselecting everything shows all again');
+      await page.click(chip('YouTube')); await sleep(300);
+      ok(await page.$eval('ul.grid.moments li.card .po-badges', (e) => !e.hidden && [...e.children].map((x) => x.textContent).join() === 'YouTube,TikTok'), 'posted on: small badges on the card (textContent)');
       await ctx.close();
-      // admin edit: trimmed, max 40, rendered as text only
+      // admin edit: checkboxes, same commit mechanism
       const h2 = hubWith(FX.index()); const s2 = await session(h2); const pg = s2.page;
       await pg.click('#admin-btn'); await pg.fill('#admin-token', WRITE); await pg.click('#admin-go'); await pg.waitForSelector('#upload-btn:not([hidden])', { timeout: 10000 });
       await openFolder(pg, S1);
       const A2 = 'ul.grid.moments li.card[data-key$="a1"]';
       await pg.click(`${A2} .card-link`); await pg.waitForSelector('dialog.drawer[open].shown'); await pg.click('#btn-edit');
-      const evil = '   <img src=x onerror=alert(1)> ' + 'z'.repeat(60);
-      await pg.fill('#ef-posted_by', evil.slice(0, 40)); // maxlength is 40 in the form
-      ok(await pg.$eval('#ef-posted_by', (e) => e.maxLength === 40), 'edit form: posted by field has maxlength 40');
+      ok((await pg.$$eval('#ef-posted_on input[type=checkbox]', (e) => e.map((x) => x.value))).join() === 'youtube,instagram,tiktok,x,other' && !(await pg.$('#ef-posted_by')), 'edit form: five platform checkboxes, no posted-by field');
+      await pg.check('#ef-po-tiktok'); await pg.check('#ef-po-youtube');
       await pg.click('#ef-save'); await pg.waitForFunction(() => [...document.querySelectorAll('.toast')].some((t) => /Saved/.test(t.textContent)), null, { timeout: 10000 }).catch(() => {});
       await sleep(800);
       const saved = h2.index().clips.find((c) => c.id === 'a1-c');
-      ok(saved && saved.posted_by === evil.slice(0, 40).trim() && saved.posted_by.length <= 40 && saved.posted_by.startsWith('<img'), 'edit: posted_by is trimmed and capped at 40 (' + JSON.stringify(saved && saved.posted_by) + ')');
+      ok(saved && JSON.stringify(saved.posted_on) === '["youtube","tiktok"]', 'edit: posted_on saved as a validated array (' + JSON.stringify(saved && saved.posted_on) + ')');
       await pg.click('.drawer-close').catch(() => {}); await sleep(500);
-      ok(await pg.$$eval('ul.grid.moments img[src="x"], ul.grid.moments .by img', (e) => e.length) === 0, 'posted by: rendered with textContent, no HTML injected');
       await s2.ctx.close();
+    }
+    if (process.env.SITESHOTS) {   // one screenshot per width into docs/sheets_camgame/ (a stream with the Filters panel open)
+      const idx = FX.index(); for (const c of idx.clips) if (c.id.startsWith('a1')) c.posted_on = ['youtube', 'tiktok'];
+      for (const [name, vp] of [['site_mobile', { width: 390, height: 844 }], ['site_pc', { width: 1280, height: 800 }]]) {
+        const r = await session(hubWith(idx), { viewport: vp, scheme: 'light' }); await openFolder(r.page, S1); await r.page.click('.cat[data-cat="all"]'); await sleep(300);
+        await r.page.click('#filter-btn').catch(() => {}); await sleep(400);
+        await r.page.screenshot({ path: path.join(REPO, 'docs/sheets_camgame', name + '.png') }); await r.ctx.close();
+      }
     }
     // ================= pure logic of moments.js in the browser (no DOM)
     {

@@ -4,7 +4,7 @@ import * as api from './api.js';
 import { createPlayer } from './player.js';
 import { accentFor, accentFromImage, rgbVar, setAurora } from './color.js';
 import { timeEl, exact, trashLine, tzName } from './time.js';
-import { human, dur, bitrate, scoreText, pretty, titleOf, tagsOf, postedByOf } from './fmt.js';
+import { human, dur, bitrate, scoreText, pretty, titleOf, tagsOf, postedOnOf, platformLabel } from './fmt.js';
 import { parsePost, countOf, copyAll } from './post.js';
 import { toast } from './toast.js';
 import { announce, trapFocus, haptic } from './a11y.js';
@@ -34,7 +34,7 @@ function details(c, trashed) {
   const res = c.width && c.height ? `${c.width}x${c.height}` : '—';
   const L = h('dl', { class: 'kvs' });
   L.append(
-    row('Title', titleOf(c)), row('ID', h('code', { text: c.id })), row('Stream', pretty(c.stream)), ...(postedByOf(c) ? [row('Posted by', postedByOf(c))] : []),
+    row('Title', titleOf(c)), row('ID', h('code', { text: c.id })), row('Stream', pretty(c.stream)), row('Posted on', postedOnOf(c).length ? h('span', { class: 'po-badges' }, ...postedOnOf(c).map(k => h('span', { class: 'po-badge', 'data-p': k, text: platformLabel(k) }))) : 'Not posted'),
     row('Added', whenCell(c.added_at)), row('Updated', whenCell(c.updated_at)));
   if (trashed) L.append(row('Deleted', h('span', { 'data-trashline': '', 'data-trashed': c.trashed_at || '', 'data-purge': c.purge_after || '', text: trashLine(c) })));
   L.append(

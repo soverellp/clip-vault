@@ -368,3 +368,6 @@ Reading guide after D23: D9, D11-D16, D18 and D22 describe the SERVER MODE (save
 - Date: YYYY-MM-DD
 - Decision / Options / Why / Consequences / Status
 ```
+
+## D46. Supersedes D45 posted_by: optional `posted_on` (platform keys youtube/instagram/tiktok/x/other) + newest-clipped-first default sort
+Decision: the owner wanted "Posted on" (platforms), not "Posted by"; `posted_on` array replaces posted_by in UI, validation, edit form (checkboxes), card/detail badges and a multi-select ANY-match filter (+ Not posted); old posted_by data is kept but ignored. The default sort is newest clipped first (ties by rank) everywhere; one always-visible labelled sort select. Status: deployed (js/css patch), 2026-11-21.
