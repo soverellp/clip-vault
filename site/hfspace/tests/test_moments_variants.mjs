@@ -7,7 +7,8 @@ const ms = M.buildMoments([w('a', 'with-girl'), w('b', 'clean'), w('c', 'face-to
 assert.equal(ms.length, 2);                                         // a second face-top clip of the same group is its own moment
 assert.deepEqual(Object.keys(ms[0].byVariant), ['with-streamer', 'clean', 'face-top']);
 assert.equal(M.pick(ms[0], 'face-top').id, 'c');
-assert.equal(M.pick(ms[0], undefined).id, 'a');                     // the default stays "With streamer"
+assert.equal(M.pick(ms[0], undefined).id, 'b');                     // the default is "Clean"
+assert.equal(M.pick(M.buildMoments([w('s', 'with-streamer')])[0], undefined).id, 's');   // no Clean: With streamer
 assert.equal(M.pick(M.buildMoments([w('x', 'face-top')])[0], undefined).id, 'x');
 assert.equal(M.variantOf({ variant: 'face-top' }), 'face-top');
 assert.equal(M.variantOf({ variant: 'with-girl' }), 'with-streamer');

@@ -25,6 +25,9 @@ Reading guide after D23: D9, D11-D16, D18 and D22 describe the SERVER MODE (save
 - **Never touched by:** `vault_sync.py` (its `commit` now refuses any path under `_config/`; test), `build_hfvault.py` and `finalise.py` (no write to it; test), `deploy_static.py` (it deploys the Space, not the dataset; `config.json` and the passphrase gate are unchanged).
 - **Scope freeze:** no notes UI (the `note` field exists in the file only), no export, no ordering; new ideas go to the backlog in `PLAN.md`.
 
+## D43. Library defaults to the Clean version; optional `posted_by` field + "Posted by" chips (2026-11-21)
+- Clean is the default variant of every moment (a viewer's own pick still wins, a moment without Clean falls back to With streamer); `posted_by` is optional free text (max 40, one line, shown with textContent), editable in the admin edit form, filled-only-when-empty by `vault_sync --meta-only`; chips (multi-select + Unassigned) combine with stream/shortlist filters. Mocked-Hub tests only; deployed as a js/css patch (config.json untouched).
+
 ## D42. `vault_sync.py --refresh-text`: the owner's rewritten post kits reach existing vault entries
 - **Date:** 2026-11-19
 - **Status:** Accepted, built, tested with the fake store (6 new tests, hfvault pytest 149); NOT yet run on the live vault.

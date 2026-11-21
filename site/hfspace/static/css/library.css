@@ -237,3 +237,6 @@ html[data-motion="reduced"] .poster img,html[data-lowpower="true"] .poster img{a
 .dbar .shl-btn.on{border-color:#ffd24a;color:#ffd24a}.dbar .shl-btn.on .ic{fill:currentColor}
 .dbar .shl-btn[aria-disabled="true"]{cursor:default;opacity:.85}
 .shl-hint{align-self:center;font-size:.78rem;color:var(--muted)}.shl-hint:empty{display:none}
+.pill.by{font-weight:500;font-size:.72rem;max-width:9em}
+.pill.by[hidden]{display:none}
+.chips-lab{align-self:center;flex:none;font-size:.78rem;font-weight:600;color:var(--muted,inherit);opacity:.8}

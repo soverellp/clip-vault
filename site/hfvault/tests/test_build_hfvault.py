@@ -257,6 +257,16 @@ def test_old_page_validates_dataset_paths_like_hubapi():
 
 
 # ------------------------------------------------------------------ Library metadata helpers (D39)
+def test_normalize_meta_posted_by_optional_trimmed_and_limited():
+    import build_hfvault as bh
+    assert "posted_by" not in bh.normalize_meta({"group": "g"}, "s")            # old data without the field stays valid
+    assert "posted_by" not in bh.normalize_meta({"posted_by": "  "}, "s")
+    assert bh.normalize_meta({"posted_by": "  Im   Goochy "}, "s")["posted_by"] == "Im Goochy"
+    for bad in ({"posted_by": 5}, {"posted_by": "x" * 41}):
+        with pytest.raises(ValueError): bh.normalize_meta(bad, "s")
+    assert "posted_by" in bh.META_FILL_ONLY                                      # an admin edit in the site is never overwritten by a sync
+
+
 def test_normalize_meta_defaults_limits_and_enums():
     import build_hfvault as bh
     m = bh.normalize_meta({"group": "g", "variant": "clean", "reaction": "mild", "reaction_note": "x" * 120, "why": "y " * 80, "rank": 3, "tier": "B"}, "s")

@@ -4,7 +4,7 @@ import { h, btn, icon, setIcon } from './dom.js';
 import * as api from './api.js';
 import { accentFromImage, accentFor, rgbVar, hueFor, setAurora } from './color.js';
 import { timeEl, trashLine } from './time.js';
-import { dur, human, scoreText, pretty, norm, titleOf, tagsOf } from './fmt.js';
+import { dur, human, scoreText, pretty, norm, titleOf, tagsOf, postedByOf } from './fmt.js';
 import * as hero from './hero3d.js';
 import { announce, haptic } from './a11y.js';
 import { openPalette } from './palette.js';
@@ -36,7 +36,7 @@ export function level(view = state.view) { if (!folderMode(view)) return 'flat';
 // Inside the moments screens the default order is "best first" until the person picks another sort.
 const sortKey = view => (folderMode(view) && !state.sortTouched ? 'rank' : state.sort);
 const single = c => ({ key: 'c:' + c.id, group: null, stream: c.stream || '', clips: [c], byVariant: {} });
-const selOf = m => state.variants.get(m.key) || 'with-streamer';
+const selOf = m => state.variants.get(m.key) || 'clean';   // Clean is the default version; a viewer's own pick (state.variants) wins, and a moment without Clean falls back inside pick()
 export function visible(view = state.view) {
   const q = norm(state.q).split(/\s+/).filter(Boolean);
   const thr = view === 'library' && state.queue === 'best' ? bestThreshold() : 0;
@@ -51,6 +51,7 @@ export function visible(view = state.view) {
       if (state.queue === 'new' && !isNew(c)) return false;
       if (state.post !== 'any' && postState(c) !== state.post) return false;
       if (state.streams.size && !state.streams.has(c.stream ?? '')) return false;
+      if (state.postedBy.size && !state.postedBy.has(postedByOf(c))) return false;
       if (state.tags.size && ![...state.tags].every(t => tagsOf(c).includes(t))) return false;
       if (state.minScore > 0 && !(Number(c.score) >= state.minScore)) return false;
     }
@@ -80,7 +81,7 @@ function makeCard(m, view) {
     h('h3', { class: 'title', lang: 'hi-Latn' }), h('p', { class: 'why', hidden: true }), h('p', { class: 'hook' }),
     h('div', { class: 'mrow', hidden: true }, h('span', { class: 'rx', hidden: true }), h('span', { class: 'mdur' })),
     h('div', { class: 'pc' }),
-    h('div', { class: 'meta' }, h('span', { class: 'pill stream' }), h('span', { class: 'size' }), h('span', { class: 'when' })));
+    h('div', { class: 'meta' }, h('span', { class: 'pill stream' }), h('span', { class: 'pill by', hidden: true }), h('span', { class: 'size' }), h('span', { class: 'when' })));
   inner.append(poster, body);
   link.append(inner);
   li.append(link);
@@ -142,6 +143,7 @@ function fillCard(li, m, c, view) {
   const pc = q('.pc'); if (pc) { pc.replaceChildren(view === 'library' ? chips(c) : ''); pc.hidden = view !== 'library'; }
   paintShl(li, c, view);
   const mb = li.querySelector('.card-more'); if (mb) mb.setAttribute('aria-label', `More actions for ${titleOf(c)}`);
+  { const by = q('.by'), pb = postedByOf(c); by.hidden = !pb; by.textContent = pb ? 'by ' + pb : ''; }
   q('.stream').textContent = pretty(c.stream); q('.size').textContent = human(c.size);
   const when = q('.when');
   if (view === 'library') { const ct = fm ? clippedText(c.clipped_at) : ''; when.replaceChildren(ct ? 'Clipped ' + ct : timeEl(c.added_at || c.updated_at)); } else when.replaceChildren();
@@ -284,7 +286,7 @@ export function update({ flip = true } = {}) {
 // Home filters (folders): D40. A folder stays when ALL ticked options hold for at least one of its clips.
 export const HOME_FILTERS = [['reaction', 'Has streamer reactions', c => c.kind === 'reaction'], ['best', 'Has best picks', c => tierOf(c) === 'A']];
 const homeKeep = f => [...state.homeFilter].every(k => f.clips.some(HOME_FILTERS.find(x => x[0] === k)?.[2] || (() => true)));
-const hasFilters = () => !!(state.shortlistOnly || state.lang || state.homeFilter.size || state.streams.size || state.tags.size || state.minScore || state.post !== 'any' || state.queue !== 'all');
+const hasFilters = () => !!(state.shortlistOnly || state.lang || state.homeFilter.size || state.streams.size || state.postedBy.size || state.tags.size || state.minScore || state.post !== 'any' || state.queue !== 'all');
 const plural = (n, w) => `${n} ${n === 1 ? w : w + 's'}`;
 // Everything that depends on the screen: which controls exist, the page heading, the category row, the Post mode button's place.
 function chrome(fm, lv, view, folders, total, inFolder) {
@@ -295,7 +297,7 @@ function chrome(fm, lv, view, folders, total, inFolder) {
   const slot = fm ? refs.postSlot : refs.heroCta; if (refs.postBtn.parentElement !== slot) slot.prepend(refs.postBtn);
   refs.head.hidden = !(lib && fm); refs.head.dataset.lv = lv; refs.root.dataset.lv = lib && fm ? lv : '';
   refs.cats.hidden = lv !== 'folder';
-  refs.streams.hidden = !lib || fm; refs.qseg.hidden = !lib || fm; refs.groupB.hidden = !lib || fm; refs.seg.hidden = fm || view === 'trash'; refs.moreF.hidden = !lib;
+  refs.postedBy.dataset.ok = lib && (!fm || lv === 'folder') ? '1' : ''; refs.postedBy.hidden = !refs.postedBy.dataset.ok || !refs.postedBy.dataset.has; refs.streams.hidden = !lib || fm; refs.qseg.hidden = !lib || fm; refs.groupB.hidden = !lib || fm; refs.seg.hidden = fm || view === 'trash'; refs.moreF.hidden = !lib;
   refs.postBtn.hidden = !lib;
   refs.sort.value = sortKey(view);
   refs.sortWrap.hidden = fm || view === 'trash';
@@ -391,7 +393,7 @@ function emptyState(kind, title, text, action) {
   refs.empty.hidden = false;
   refs.empty.append(h('img', { class: 'empty-art', src: `/assets/empty-${kind}.svg`, alt: '', width: 200, height: 160 }), h('h3', { text: title }), h('p', { text }), action);
 }
-export function clearFilters() { state.shortlistOnly = false; state.lang = ''; state.homeFilter.clear(); state.cat = 'all'; state.streams.clear(); state.tags.clear(); state.minScore = 0; state.q = ''; state.queue = 'all'; state.post = 'any'; refs.postF.value = 'any'; refs.q.value = ''; refs.score.value = '0'; refs.scoreVal.textContent = 'Any'; emit('filters'); update(); }
+export function clearFilters() { state.shortlistOnly = false; state.lang = ''; state.homeFilter.clear(); state.cat = 'all'; state.streams.clear(); state.postedBy.clear(); state.tags.clear(); state.minScore = 0; state.q = ''; state.queue = 'all'; state.post = 'any'; refs.postF.value = 'any'; refs.q.value = ''; refs.score.value = '0'; refs.scoreVal.textContent = 'Any'; emit('filters'); update(); }
 
 const QUEUES = [['all', 'All'], ['ready', 'Ready to post'], ['best', 'Best clips'], ['new', 'New']];
 function updateQueue() {
@@ -403,7 +405,7 @@ function updateQueue() {
   refs.postF.parentElement.hidden = state.view !== 'library' || !admin;
   if (!admin && state.queue === 'ready') state.queue = 'all';
   refs.groupB.setAttribute('aria-pressed', String(state.group));
-  const nf = state.homeFilter.size + state.streams.size + state.tags.size + (state.minScore > 0 ? 1 : 0) + (state.post !== 'any' ? 1 : 0) + (state.queue !== 'all' && !fmNow ? 1 : 0);
+  const nf = state.homeFilter.size + state.streams.size + state.postedBy.size + state.tags.size + (state.minScore > 0 ? 1 : 0) + (state.post !== 'any' ? 1 : 0) + (state.queue !== 'all' && !fmNow ? 1 : 0);
   refs.filterN.textContent = String(nf); refs.filterN.hidden = !nf; refs.filterBtn.setAttribute('aria-label', nf ? `Filter, ${nf} active` : 'Filter');
 }
 // "Shortlisted N" filter chip (combines with every other filter) and "Copy shortlist". Shown when something is shortlisted, the filter is on, or admin mode can star.
@@ -426,6 +428,16 @@ function updateChips() {
   };
   const all = h('button', { type: 'button', class: 'chip' + (!state.streams.size ? ' on' : ''), 'aria-pressed': String(!state.streams.size), on: { click: () => { state.streams.clear(); emit('filters'); update(); } } }, h('span', { class: 'lbl', text: 'All streams' }), h('span', { class: 'n', text: String(lib.length) }));
   refs.streams.replaceChildren(all, ...[...streams].sort((a, b) => b[1] - a[1]).map(([s, n]) => mk(state.streams, s, pretty(s), n, 'stream')));
+  // "Posted by": one chip per distinct value plus Unassigned (multi-select, combines with every other filter); only shown when some clip has a value.
+  const pby = new Map(); for (const c of lib) { const p = postedByOf(c); pby.set(p, (pby.get(p) || 0) + 1); }
+  for (const v of [...state.postedBy]) if (!pby.has(v)) state.postedBy.delete(v);
+  const pbAll = h('button', { type: 'button', class: 'chip' + (!state.postedBy.size ? ' on' : ''), 'aria-pressed': String(!state.postedBy.size), on: { click: () => { state.postedBy.clear(); emit('filters'); update(); } } }, h('span', { class: 'lbl', text: 'Anyone' }), h('span', { class: 'n', text: String(lib.length) }));
+  const named = [...pby].filter(([p]) => p).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const chipsBy = named.map(([p, n]) => mk(state.postedBy, p, p, n, 'postedby'));
+  if (pby.has('')) chipsBy.push(mk(state.postedBy, '', 'Unassigned', pby.get(''), 'postedby'));
+  refs.postedBy.replaceChildren(...(named.length ? [h('span', { class: 'chips-lab', text: 'Posted by' }), pbAll, ...chipsBy] : []));
+  refs.postedBy.dataset.has = named.length ? '1' : '';
+  refs.postedBy.hidden = !refs.postedBy.dataset.ok || !named.length;   // the chrome step ran first and set dataset.ok (library list or inside a stream; not the stream cards)
   const top = [...tags].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 24);
   refs.tags.replaceChildren(...top.map(([t, n]) => mk(state.tags, t, '#' + t.replace(/^#/, ''), n, 'tag')));
   const max = Math.max(10, ...lib.map(c => Number(c.score) || 0));
@@ -500,6 +512,7 @@ export function build(root) {
   const sortWrap = h('label', { class: 'sel-wrap' }, h('span', { class: 'sr', text: 'Sort' }), sort);
   const toolRow = h('div', { class: 'tool-row' }, sortWrap, h('label', { class: 'sel-wrap post-wrap' }, h('span', { class: 'sr', text: 'Posting status' }), postF), seg, groupB, selBtn);
   const streams = h('div', { class: 'chips scroll', role: 'group', 'aria-label': 'Stream filters' });
+  const postedBy = h('div', { class: 'chips scroll', role: 'group', 'aria-label': 'Posted by filters' });
   const trashBar = h('div', { class: 'trash-bar', hidden: true }, h('p', { class: 'trash-note', text: 'Deleted clips stay here for 30 days, then they are purged for good.' }),
     btn('Empty trash', { kind: 'danger', ic: 'trash', on: () => emit('act', { type: 'empty' }) }));
   const count = h('p', { class: 'count', 'aria-live': 'polite' });
@@ -514,9 +527,9 @@ export function build(root) {
   const head = h('header', { class: 'page-head', hidden: true }, headImg, back, headTitle, headSub, langTag);
   const cats = h('div', { class: 'cats', role: 'group', 'aria-label': 'Categories', hidden: true });
   const fgrid = h('ul', { class: 'folder-grid', 'aria-label': 'Streams', hidden: true });
-  const panel = h('section', { class: 'filter-panel', id: 'filter-panel', 'aria-label': 'Filters', hidden: !state.filterOpen }, homeF, toolRow, qseg, streams, moreF);
+  const panel = h('section', { class: 'filter-panel', id: 'filter-panel', 'aria-label': 'Filters', hidden: !state.filterOpen }, homeF, toolRow, qseg, streams, postedBy, moreF);
   root.append(heroEl, tabsEl, head, tools, vsort, langbar, shlRow, panel, trashBar, count, cats, skel, fgrid, grid, empty);
-  refs = { shlRow, shlChip, shlCopy, vsort, langbar, homeF, sortWrap, langTag, root, headImg, grid, fgrid, cats, head, back, headTitle, headSub, panel, filterBtn, filterN, postBtn, postSlot, heroCta, seg, toolRow, skel, empty, count, q, streams, tags: moreF.querySelector('#tagchips'), moreF, score, scoreVal, modeG, modeL, selBtn, tabs: tabsEl, hero: heroEl, tools, trashBar, stClips, stTime, stSize, stReady, sort, qseg, postF, groupB };
+  refs = { shlRow, shlChip, shlCopy, vsort, langbar, homeF, sortWrap, langTag, root, headImg, grid, fgrid, cats, head, back, headTitle, headSub, panel, filterBtn, filterN, postBtn, postSlot, heroCta, seg, toolRow, skel, empty, count, q, streams, postedBy, tags: moreF.querySelector('#tagchips'), moreF, score, scoreVal, modeG, modeL, selBtn, tabs: tabsEl, hero: heroEl, tools, trashBar, stClips, stTime, stSize, stReady, sort, qseg, postF, groupB };
 
   io = new IntersectionObserver(es => {
     for (const e of es) if (e.isIntersecting) {
@@ -584,7 +597,7 @@ function setMode(m) {
 }
 export function setView(view, me) {
   refs.trashBar.hidden = view !== 'trash';
-  refs.streams.hidden = view !== 'library'; refs.moreF.hidden = view !== 'library'; refs.qseg.hidden = view !== 'library';
+  refs.postedBy.hidden = view !== 'library' || !refs.postedBy.dataset.has; refs.streams.hidden = view !== 'library'; refs.moreF.hidden = view !== 'library'; refs.qseg.hidden = view !== 'library';
   refs.groupB.hidden = view !== 'library'; refs.panel.querySelector('.post-wrap').hidden = view !== 'library' || !isAdmin();
   refs.selBtn.hidden = !canWrite();
   refs.panel.querySelector('.tool-row .sel-wrap').hidden = view === 'trash';

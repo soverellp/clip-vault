@@ -4,6 +4,8 @@ export const bitrate = b => b == null || !Number.isFinite(+b) ? '—' : +b >= 1e
 export const scoreText = s => s == null || !Number.isFinite(+s) ? '' : (+s <= 10 ? (+s).toFixed(1) : String(Math.round(+s)));
 export const pretty = s => s ? String(s).replace(/^\d{4}-\d\d-\d\d_/, '').replace(/[-_]+/g, ' ') : 'No stream';
 export const norm = s => String(s ?? '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase();
+// Optional free-text "posted by" (max 40 chars, one line); '' means Unassigned. Only ever rendered with textContent.
+export const postedByOf = c => (c && typeof c.posted_by === 'string' ? c.posted_by.replace(/\s+/g, ' ').trim().slice(0, 40) : '');
 export const titleOf = c => (c && c.title ? String(c.title) : 'Untitled clip');
 export const tagsOf = c => Array.isArray(c?.tags) ? c.tags.map(String).filter(Boolean) : [];
 export const ago = n => n;

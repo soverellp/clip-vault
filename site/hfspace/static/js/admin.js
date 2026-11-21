@@ -151,7 +151,7 @@ export function editForm(clip, { close }) {
   const init = { title: clip.title || '', hook: clip.hook || '', desc: clip.desc || '', post: clip.post || '', stream: clip.stream || '', tags: (clip.tags || []).join(', ') };
   // Library fields (reaction, kind, tier, why): only offered when the backend can store them (static mode, me().capabilities.moments).
   const moments = state.me?.capabilities?.moments === true;
-  const MKEYS = ['reaction', 'kind', 'tier', 'why'];
+  const MKEYS = ['reaction', 'kind', 'tier', 'why', 'posted_by'];
   if (moments) for (const k of MKEYS) init[k] = clip[k] == null ? '' : String(clip[k]);
   const sibling = moments && clip.group ? state.clips.find(x => x.id !== clip.id && x.group === clip.group && (x.stream || '') === (clip.stream || '')) : null;
   const cur = { ...init, ...(d?.vals || {}) };
@@ -170,9 +170,10 @@ export function editForm(clip, { close }) {
     const sel = (key, label, vals) => mk(key, label, 'select', { options: [['', 'Not set'], ...vals.map(v => [v, v])] });
     F.reaction = sel('reaction', 'Streamer reaction', ['strong', 'mild', 'none', 'unrated']); F.kind = sel('kind', 'Category', ['reaction', 'game']); F.tier = sel('tier', 'Tier (A = best)', ['A', 'B', 'C']);
     F.why = mk('why', 'Why (one line)', 'input', { max: 300 });
+    F.posted_by = mk('posted_by', 'Posted by (name, max 40)', 'input', { max: 40 });
   }
   const both = sibling ? h('input', { type: 'checkbox', id: 'ef-both', checked: true }) : null;
-  const form = h('form', { class: 'edit', novalidate: '', 'aria-label': 'Edit clip' }, dl, ...Object.values(F).map(f => f.wrap), both ? h('label', { class: 'check-row' }, both, h('span', { text: 'Apply reaction, category, tier and why to both versions' })) : null);
+  const form = h('form', { class: 'edit', novalidate: '', 'aria-label': 'Edit clip' }, dl, ...Object.values(F).map(f => f.wrap), both ? h('label', { class: 'check-row' }, both, h('span', { text: 'Apply reaction, category, tier, why and posted by to both versions' })) : null);
   const status = h('p', { class: 'form-err', role: 'alert' }), dirtyNote = h('span', { class: 'dirty', text: '' });
   if (d?.error) status.textContent = d.error;
   const save = btn('Save changes', { kind: 'primary', type: 'submit' }), cancel = btn('Cancel', { kind: 'ghost', on: () => { if (dirty()) discard(); else close(); } });

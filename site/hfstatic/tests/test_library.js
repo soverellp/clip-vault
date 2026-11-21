@@ -115,12 +115,12 @@ const server = http.createServer((q, r) => {
       ok(await page.$eval(`${A} .rx`, (e) => { const rgb = (s) => s.match(/[\d.]+/g).slice(0, 3).map(Number); const L = (c) => { const f = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; }; const s = getComputedStyle(e); const a = L(rgb(s.color)), c = L(rgb(s.backgroundColor)); return (Math.max(a, c) + 0.05) / (Math.min(a, c) + 0.05) >= 4.5; }), 'reaction badge contrast is at least 4.5:1 (dark)');
 
       // ---- variant switch
-      ok((await texts(page, `${A} .vbtn`)).join('|') === 'With streamer|Clean' && (await page.getAttribute(`${A} .vbtn[data-variant="with-streamer"]`, 'aria-pressed')) === 'true', 'pill "With streamer | Clean", With streamer selected first');
+      ok((await texts(page, `${A} .vbtn`)).join('|').startsWith('With streamer|Clean') && (await page.getAttribute(`${A} .vbtn[data-variant="with-streamer"]`, 'aria-pressed')) === 'false' && (await page.getAttribute(`${A} .vbtn[data-variant="clean"]`, 'aria-pressed')) === 'true', 'pill "With streamer | Clean", Clean selected by default');
       ok((await page.$$eval(`${A} .vbtn`, (e) => e.every((x) => x.offsetHeight >= 44))), 'the pill buttons are at least 44 px tall');
       await page.click(`${A} .card-link`); await page.waitForSelector('dialog.drawer[open].shown'); await page.waitForFunction(() => document.querySelector('dialog.drawer video'), null, { timeout: 8000 }).catch(() => {});
       await sleep(600);
       const mp4 = () => hub.requests.filter((r) => /clips\/[\w-]+\.mp4$/.test(r.url)).map((r) => r.url.split('/').pop());
-      ok(mp4().includes('a1-w.mp4') && !mp4().includes('a1-c.mp4'), 'with-streamer selected: the with-streamer file is the one fetched and played');
+      ok(mp4().includes('a1-c.mp4') && !mp4().includes('a1-w.mp4'), 'clean selected by default: the clean file is the one fetched and played');
       await page.click('.drawer-close'); await page.waitForSelector('dialog.drawer:not([open])', { state: 'attached' });
       ok(page.url().endsWith('#/stream/' + S1), 'closing a clip returns to the stream, not the library home');
       await page.click(`${A} .vbtn[data-variant="clean"]`);
@@ -292,6 +292,7 @@ const server = http.createServer((q, r) => {
       await page.click('#admin-btn'); await page.fill('#admin-token', WRITE); await page.click('#admin-go'); await page.waitForSelector('#upload-btn:not([hidden])', { timeout: 10000 });
       await openFolder(page, S1);
       const A = 'ul.grid.moments li.card[data-key$="a1"]';
+      await page.click(`${A} .vbtn[data-variant="with-streamer"]`);
       await page.click(`${A} .card-link`); await page.waitForSelector('dialog.drawer[open].shown'); await page.click('#btn-edit');
       await page.fill('#ef-title', 'Renamed boss moment'); await page.selectOption('#ef-reaction', 'mild'); await page.selectOption('#ef-tier', 'B'); await page.fill('#ef-why', 'New one line why');
       ok(await page.isChecked('#ef-both'), 'edit form: "apply to both versions" is offered and on by default for a pair');
@@ -310,6 +311,41 @@ const server = http.createServer((q, r) => {
       ok(prev > 0, 'edit committed (' + prev + ' commit(s), parent-checked)');
       await ctx.close();
     }
+    // ================= "Posted by" filter + edit sanitising (admin edit form, MOCKED Hub)
+    {
+      const idx = FX.index(); for (const c of idx.clips) { if (c.id.startsWith('a1')) c.posted_by = 'ImGoochy'; else if (c.id.startsWith('b2')) c.posted_by = 'iboclips'; }
+      const hub = hubWith(idx); const { ctx, page } = await session(hub);
+      await openFolder(page, S1);
+      const kinds = () => page.$$eval('.chip[data-kind="postedby"] .lbl', (e) => e.map((x) => x.textContent));
+      await page.click('#filter-btn').catch(() => {}); await sleep(300);
+      const labs = await kinds();
+      ok(labs.join() === 'ImGoochy,iboclips' || labs.join() === 'iboclips,ImGoochy' || (labs.includes('ImGoochy') && labs.includes('iboclips')), 'posted by: one chip per distinct value (' + labs.join('/') + ')');
+      const nCards = () => page.$$eval('ul.grid.moments li.card', (e) => e.length);
+      await page.click('.cat[data-cat="all"]'); await sleep(300);
+      const all0 = await nCards();
+      await page.click('.chip[data-kind="postedby"]:has(.lbl:text-is("ImGoochy"))'); await sleep(400);
+      ok(await nCards() === 1 && all0 > 1, 'posted by: selecting a name keeps only that person\'s moments');
+      ok(await page.$eval('ul.grid.moments li.card .by', (e) => e.textContent === 'by ImGoochy' && !e.hidden), 'posted by: small label on the card');
+      await page.click('.chip[data-kind="postedby"]:has(.lbl:text-is("ImGoochy"))'); await sleep(300);
+      ok(await nCards() === all0, 'posted by: deselecting shows everything again');
+      await ctx.close();
+      // admin edit: trimmed, max 40, rendered as text only
+      const h2 = hubWith(FX.index()); const s2 = await session(h2); const pg = s2.page;
+      await pg.click('#admin-btn'); await pg.fill('#admin-token', WRITE); await pg.click('#admin-go'); await pg.waitForSelector('#upload-btn:not([hidden])', { timeout: 10000 });
+      await openFolder(pg, S1);
+      const A2 = 'ul.grid.moments li.card[data-key$="a1"]';
+      await pg.click(`${A2} .card-link`); await pg.waitForSelector('dialog.drawer[open].shown'); await pg.click('#btn-edit');
+      const evil = '   <img src=x onerror=alert(1)> ' + 'z'.repeat(60);
+      await pg.fill('#ef-posted_by', evil.slice(0, 40)); // maxlength is 40 in the form
+      ok(await pg.$eval('#ef-posted_by', (e) => e.maxLength === 40), 'edit form: posted by field has maxlength 40');
+      await pg.click('#ef-save'); await pg.waitForFunction(() => [...document.querySelectorAll('.toast')].some((t) => /Saved/.test(t.textContent)), null, { timeout: 10000 }).catch(() => {});
+      await sleep(800);
+      const saved = h2.index().clips.find((c) => c.id === 'a1-c');
+      ok(saved && saved.posted_by === evil.slice(0, 40).trim() && saved.posted_by.length <= 40 && saved.posted_by.startsWith('<img'), 'edit: posted_by is trimmed and capped at 40 (' + JSON.stringify(saved && saved.posted_by) + ')');
+      await pg.click('.drawer-close').catch(() => {}); await sleep(500);
+      ok(await pg.$$eval('ul.grid.moments img[src="x"], ul.grid.moments .by img', (e) => e.length) === 0, 'posted by: rendered with textContent, no HTML injected');
+      await s2.ctx.close();
+    }
     // ================= pure logic of moments.js in the browser (no DOM)
     {
       const hub = hubWith(FX.index()); const { ctx, page } = await session(hub);
@@ -319,7 +355,7 @@ const server = http.createServer((q, r) => {
         return { n: ms.length, first: ms[0].clips.map((c) => c.id), pick: M.pick(ms[0], undefined).id, pickClean: M.pick(ms[0], 'clean').id, rx: M.reactionOf({}), rx2: M.reactionOf({ reaction: 'bogus' }), tier: M.tierOf({ tier: 'Z' }),
           cat: M.catHas({ clips: [{}] }, 'game'), href: M.folderHref(''), cmp: [{ tier: 'B', rank: 1 }, { tier: 'A', rank: 9 }, { rank: 1 }].sort(M.rankCmp).map((c) => c.tier || '-').join('') };
       });
-      ok(r.n === 4 && r.first.join() === '1,2' && r.pick === '2' && r.pickClean === '1', 'moments.js: pairs by group+variant, one clip per slot, default With streamer, duplicates stay separate');
+      ok(r.n === 4 && r.first.join() === '1,2' && r.pick === '1' && r.pickClean === '1', 'moments.js: pairs by group+variant, one clip per slot, default Clean, duplicates stay separate');
       ok(r.rx === 'unrated' && r.rx2 === 'unrated' && r.tier === null && r.cat === true && r.href === '#/stream/~other' && r.cmp === 'AB-', 'moments.js: unrated by default, bad enums ignored, missing kind = game, tier A first');
       await ctx.close();
     }

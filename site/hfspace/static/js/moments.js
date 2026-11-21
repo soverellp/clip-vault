@@ -31,9 +31,9 @@ export function buildMoments(clips) {
   return out;
 }
 export const hasPair = m => Object.keys(m.byVariant).length > 1;
-// The default variant is "With streamer" when the moment has it, otherwise whatever it has.
+// The default variant is "Clean" when the moment has it, otherwise With streamer, otherwise whatever it has.
 export function pick(m, sel) {
-  return m.byVariant[sel] || m.byVariant['with-streamer'] || m.byVariant.clean || m.byVariant['face-top'] || m.clips[0];
+  return m.byVariant[sel] || m.byVariant.clean || m.byVariant['with-streamer'] || m.byVariant['face-top'] || m.clips[0];
 }
 // What a card shows: the selected variant's own fields, filled from the other variant when they are empty.
 export function infoOf(m, rep) {

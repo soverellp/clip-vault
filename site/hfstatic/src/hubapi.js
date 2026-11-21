@@ -18,7 +18,7 @@ const SAFE = /^(clips\/[\w.\-ऀ-ॿ]{1,200}\.(mp4|jpg|jpeg)|streams\/[A-Za-z0-9
 const THUMB_RE = /^streams\/[A-Za-z0-9_][A-Za-z0-9_.\-]{0,199}\/thumb\.jpg$/;
 // Moment fields (all optional, see clip-vault-project/UI-LIBRARY.md). Enumerated ones are validated on read and on edit.
 const ENUMS = { reaction: ['strong', 'mild', 'none', 'unrated'], kind: ['reaction', 'game'], tier: ['A', 'B', 'C'], variant: ['with-streamer', 'with-girl', 'clean', 'face-top'] };
-const EDIT_ENUMS = ['reaction', 'kind', 'tier'], EDIT_TEXT = { why: 300, reaction_note: 300 };
+const EDIT_ENUMS = ['reaction', 'kind', 'tier'], EDIT_TEXT = { why: 300, reaction_note: 300, posted_by: 40 };
 const EDITABLE = new Set([...Object.keys(LIMITS), 'tags', 'posted', 'notes', ...EDIT_ENUMS, ...Object.keys(EDIT_TEXT)]);
 const enc = encodeURIComponent;
 
@@ -143,7 +143,7 @@ const isoMs = v => (typeof v === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.
 const isoOrNull = v => (typeof v === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/.test(v) && !Number.isNaN(Date.parse(v)) ? v : null);
 const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
 const num = v => (typeof v === 'number' && Number.isFinite(v) ? v : null);
-const KNOWN_CLIP = new Set(['id', 'stream', 'title', 'hook', 'desc', 'description', 'post', 'tags', 'dur', 'score', 'size', 'width', 'height', 'fps', 'codec', 'bitrate', 'sha256', 'added_at', 'updated_at', 'video', 'poster', 'posted', 'notes', 'trashed_at', 'purge_after']);
+const KNOWN_CLIP = new Set(['id', 'stream', 'title', 'hook', 'desc', 'description', 'post', 'tags', 'dur', 'score', 'size', 'width', 'height', 'fps', 'codec', 'bitrate', 'sha256', 'added_at', 'updated_at', 'video', 'poster', 'posted', 'notes', 'trashed_at', 'purge_after', 'posted_by']);
 export function normalizeClip(c) {
   if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
   const m = typeof c.video === 'string' ? VIDEO_RE.exec(c.video) : null;
@@ -154,7 +154,8 @@ export function normalizeClip(c) {
   const tags = Array.isArray(c.tags) ? c.tags.filter(t => typeof t === 'string' && t).map(t => t.slice(0, 40)).slice(0, 20) : [];
   // Fields this code does not know (group, variant, reaction, reaction_note, kind, tier, rank, why, ...) pass through UNCHANGED, so no edit erases them (D39).
   const extra = {}; for (const k of Object.keys(c)) if (!KNOWN_CLIP.has(k) && k !== '__proto__') extra[k] = c[k];
-  return { ...extra, id, stream: str(c.stream, 120), title: str(c.title, 200) || id, hook: str(c.hook, 300), desc: str(c.desc ?? c.description, 2000), post: str(c.post, 20000), tags,
+  const pb = typeof c.posted_by === 'string' ? cleanText(c.posted_by, false).slice(0, 40) : '';
+  return { ...extra, ...(pb ? { posted_by: pb } : {}), id, stream: str(c.stream, 120), title: str(c.title, 200) || id, hook: str(c.hook, 300), desc: str(c.desc ?? c.description, 2000), post: str(c.post, 20000), tags,
     dur: num(c.dur), score: num(c.score), size: num(c.size), width: num(c.width), height: num(c.height), fps: num(c.fps),
     codec: typeof c.codec === 'string' ? c.codec : null, bitrate: num(c.bitrate), sha256: typeof c.sha256 === 'string' ? c.sha256 : null,
     added_at: isoOrNull(c.added_at), updated_at: isoOrNull(c.updated_at), video: `clips/${id}.mp4`, poster: c.poster ? `clips/${id}.jpg` : null,
