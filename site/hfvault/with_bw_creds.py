@@ -86,6 +86,14 @@ ITEM_MAP = {
     "Kaggle GPU (SovereLLP)": [("notes", "KAGGLE_USERNAME2"), ("field", "KAGGLE_APITOKEN2")],
 }
 
+
+def norm_username(v):
+    """Kaggle slug from a note: first non-empty line, optional 'Username:' label dropped, first word, lowercase."""
+    import re
+    line = next((l.strip() for l in (v or "").splitlines() if l.strip()), "")
+    line = re.sub(r"^(user\s*name|username|user|slug)\s*[:=-]\s*", "", line, flags=re.I)
+    return (line.split() or [""])[0].lower()
+
 def map_items(items):
     """-> (env {VAR: value}, names [env names loaded], ignored count). Never touches Login usernames."""
     env, names, ignored = {}, [], 0
@@ -97,6 +105,7 @@ def map_items(items):
             for src, var in ITEM_MAP[name]:
                 v = (it.get("notes") if src == "notes" else field_value(it, None)) or ""
                 v = v.strip()
+                if var in ("KAGGLE_USERNAME", "KAGGLE_USERNAME2"): v = norm_username(v)
                 if not v or var in env: continue
                 env[var] = v; names.append(var); got += 1
             if not got: ignored += 1
