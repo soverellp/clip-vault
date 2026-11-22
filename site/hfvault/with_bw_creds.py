@@ -78,7 +78,7 @@ def field_value(it, name):
 # Secure Notes whose item names are not env names: item name -> [(source, VAR)]; source "notes" = notes text,
 # "field" = the note's only non-empty custom field (the token).
 ITEM_MAP = {
-    "Hugging Face Token 1 (SovereLLP)": [("field", "HF_Token")],
+    "Hugging Face Token 1 (SovereLLP)": [("field", "HF_Token"), ("field", "VAULT_WRITE_TOKEN")],
     "Hugging Face Clip Vault Token (SovereLLP)": [("field", "VAULT_READ_TOKEN")],
     "Hugging Face Token 2 (ARVR7Plays)": [("field", "HF_Token_Backup")],
     "Clip Vault Site": [("field", "VAULT_PASSPHRASE")],
