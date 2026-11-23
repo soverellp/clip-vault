@@ -26,7 +26,7 @@ REPO = HERE.parents[1]
 _spec = importlib.util.spec_from_file_location("with_vault_creds", HERE / "with_vault_creds.py")
 wvc = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(wvc)  # masking helpers, read-only check
 
-ALLOWED_SCRIPTS = wvc.ALLOWED_SCRIPTS + (".claude/skills/clips/scripts/download/kaggle.py", "site/hfvault/check_creds.py")
+ALLOWED_SCRIPTS = wvc.ALLOWED_SCRIPTS + (".claude/skills/clips/scripts/download/kaggle.py", "site/hfvault/check_creds.py", ".claude/skills/clips/scripts/long_run.py")
 ALIASES = {"HF_Tokem": "HF_Token", "HF_TOKEN": "HF_Token", "Clip_vault_HFToken": "VAULT_READ_TOKEN",
            "CLIP_VAULT_HFTOKEN": "VAULT_READ_TOKEN"}
 ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -78,7 +78,7 @@ def field_value(it, name):
 # Secure Notes whose item names are not env names: item name -> [(source, VAR)]; source "notes" = notes text,
 # "field" = the note's only non-empty custom field (the token).
 ITEM_MAP = {
-    "Hugging Face Token 1 (SovereLLP)": [("field", "HF_Token")],
+    "Hugging Face Token 1 (SovereLLP)": [("field", "HF_Token"), ("field", "VAULT_WRITE_TOKEN")],
     "Hugging Face Clip Vault Token (SovereLLP)": [("field", "VAULT_READ_TOKEN")],
     "Hugging Face Token 2 (ARVR7Plays)": [("field", "HF_Token_Backup")],
     "Clip Vault Site": [("field", "VAULT_PASSPHRASE")],

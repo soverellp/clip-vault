@@ -1,5 +1,5 @@
 import { state, on, emit, listFor, isAdmin, canWrite } from './state.js';
-import { variantOf, buildMoments, hasPair, pick, infoOf, catHas, catCounts, momentRankCmp, rankCmp, hasNewFields, foldersOf, folderHref, dateText, clippedText, langStats, langOfClip, tierOf, VARIANTS, CATS } from './moments.js';
+import { variantOf, buildMoments, hasPair, hasTeaserPair, pick, comboExists, selWith, TEASERS, teaserOf, infoOf, catHas, catCounts, momentRankCmp, rankCmp, hasNewFields, foldersOf, folderHref, dateText, clippedText, langStats, langOfClip, tierOf, VARIANTS, CATS } from './moments.js';
 import { h, btn, icon, setIcon } from './dom.js';
 import * as api from './api.js';
 import { accentFromImage, accentFor, rgbVar, hueFor, setAurora } from './color.js';
@@ -36,7 +36,7 @@ export function level(view = state.view) { if (!folderMode(view)) return 'flat';
 // Inside the moments screens the default order is "best first" until the person picks another sort.
 const sortKey = view => state.sort;   // D46: the default is newest clipped first everywhere; "Best" (rank/tier) is one choice in the sort control
 const single = c => ({ key: 'c:' + c.id, group: null, stream: c.stream || '', clips: [c], byVariant: {} });
-const selOf = m => state.variants.get(m.key) || 'clean';   // Clean is the default version; a viewer's own pick (state.variants) wins, and a moment without Clean falls back inside pick()
+const selOf = m => state.variants.get(m.key) || { variant: 'clean', teaser: null };   // default: Clean + With teaser (Clean alone when the moment has no teaser); a viewer's own pick (state.variants: { variant, teaser }) wins, and pick() falls back
 export function visible(view = state.view) {
   const q = norm(state.q).split(/\s+/).filter(Boolean);
   const thr = view === 'library' && state.queue === 'best' ? bestThreshold() : 0;
@@ -90,8 +90,10 @@ function makeCard(m, view) {
   li.append(chk);
   if (!trash) li.append(h('button', { type: 'button', class: 'shl', 'aria-pressed': 'false', hidden: true, on: { click: e => { e.preventDefault(); e.stopPropagation(); toggleShortlist(li._c || c); } } }, icon('star')));
   if (!trash) li.append(h('button', { type: 'button', class: 'card-more', 'aria-haspopup': 'dialog', on: { click: e => { e.preventDefault(); e.stopPropagation(); openCardSheet(li._c || c, { opener: e.currentTarget }); } } }, icon('dots')));
+  li.append(h('div', { class: 'tpill', role: 'group', 'aria-label': 'Teaser', hidden: true }, ...TEASERS.map(([t, label]) =>
+    h('button', { type: 'button', class: 'vbtn', 'data-teaser': t ? '1' : '0', 'aria-pressed': 'false', text: label, on: { click: e => { e.preventDefault(); e.stopPropagation(); setChoice(li, 'teaser', t); } } }))));
   li.append(h('div', { class: 'vpill', role: 'group', 'aria-label': 'Version', hidden: true }, ...VARIANTS.map(([v, label]) =>
-    h('button', { type: 'button', class: 'vbtn', 'data-variant': v, 'aria-pressed': 'false', text: label, on: { click: e => { e.preventDefault(); e.stopPropagation(); setVariant(li, v); } } }))));
+    h('button', { type: 'button', class: 'vbtn', 'data-variant': v, 'aria-pressed': 'false', text: label, on: { click: e => { e.preventDefault(); e.stopPropagation(); setChoice(li, 'variant', v); } } }))));
   if (trash) {
     li.append(h('div', { class: 'card-actions' }, h('p', { class: 'trashline', 'data-trashline': '', 'data-trashed': c.trashed_at || '', 'data-purge': c.purge_after || '' }),
       h('div', { class: 'row' }, btn('Restore', { ic: 'restore', cls: 'sm', on: () => emit('act', { type: 'restore', ids: [li._c.id] }) }),
@@ -163,18 +165,21 @@ function fillCard(li, m, c, view) {
   q('.mrow').hidden = !fm;
   li.classList.toggle('has-pair', fm && hasPair(m));
   const vp = q('.vpill'); vp.hidden = !(fm && hasPair(m));
-  for (const b of vp.children) { const on_ = b.dataset.variant === variantOf(c); b.setAttribute('aria-pressed', String(on_)); b.disabled = !m.byVariant[b.dataset.variant]; b.hidden = b.dataset.variant === 'face-top' && !m.byVariant['face-top']; }  // the third version only shows on moments that have it
+  const tp = q('.tpill'); tp.hidden = !(fm && hasTeaserPair(m)); li.classList.toggle('has-teaser', !tp.hidden);
+  for (const b of tp.children) { const t = b.dataset.teaser === '1'; b.setAttribute('aria-pressed', String(t === teaserOf(c))); b.disabled = !comboExists(m, c, 'teaser', t); }
+  for (const b of vp.children) { const on_ = b.dataset.variant === variantOf(c); b.setAttribute('aria-pressed', String(on_)); b.disabled = !comboExists(m, c, 'variant', b.dataset.variant); b.hidden = b.dataset.variant === 'face-top' && !m.byVariant['face-top']; }  // the third version only shows on moments that have it
   vp.classList.toggle('v3', !!m.byVariant['face-top']);
-  li.querySelector('.card-link').setAttribute('aria-label', `${titleOf(c)}, ${dur(c.dur)}` + (fm && hasPair(m) && variantOf(c) ? `, ${(VARIANTS.find(x => x[0] === variantOf(c)) || [0, 'with streamer'])[1].toLowerCase()} version` : ''));
+  li.querySelector('.card-link').setAttribute('aria-label', `${titleOf(c)}, ${dur(c.dur)}` + (fm && hasPair(m) && variantOf(c) ? `, ${(VARIANTS.find(x => x[0] === variantOf(c)) || [0, 'with streamer'])[1].toLowerCase()} version` : '') + (fm && hasTeaserPair(m) ? (teaserOf(c) ? ', with teaser' : ', without teaser') : ''));
 }
 // The small label above a card title: "Top pick" on the lead card of a ranked list, "Best clip" for any other tier A moment, nothing otherwise.
 function setLab(li) { const lab = li.querySelector('.lab'); if (!lab) return; const t = li.classList.contains('lead') ? 'Top pick' : li._tier === 'A' ? 'Best clip' : ''; lab.textContent = t; lab.hidden = !t; }
 // "With streamer | Clean | Face on top": the card now stands for the other clip of the moment. Play, download, the post kit and Post mode follow it.
-function setVariant(li, v) {
-  const m = li._m; if (!m?.byVariant[v] || li._c === m.byVariant[v]) return;
-  state.variants.set(m.key, v);
-  fillCard(li, m, m.byVariant[v], li.dataset.view);
-  syncFeed(); announce(`${VARIANTS.find(x => x[0] === v)[1]} version selected`);
+function setChoice(li, axis, val) {
+  const m = li._m, cur = li._c; if (!m || !comboExists(m, cur, axis, val)) return;
+  const next = pick(m, selWith(cur, axis, val)); if (next === cur) return;
+  state.variants.set(m.key, selWith(cur, axis, val));
+  fillCard(li, m, next, li.dataset.view);
+  syncFeed(); announce(axis === 'variant' ? `${VARIANTS.find(x => x[0] === val)[1]} version selected` : `${val ? 'With' : 'Without'} teaser selected`);
 }
 
 // Purely decorative "waveform": bar heights come from the clip id hash and its score. One <path>, no per-bar elements.
