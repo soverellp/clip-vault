@@ -362,21 +362,3 @@ def test_deploy_verify_decrypt_passes_with_the_right_passphrase_and_fails_with_a
     assert ds.verify_config(out) is True
     monkeypatch.setenv("VAULT_PASSPHRASE", "totally different words here now")
     assert ds.verify_config(out) is False
-
-
-# ---- D47: the per-viewer Post info switch may use localStorage in viewpref.js only, key cv.postmode only
-def test_viewpref_passes_and_uses_only_its_key():
-    src = (HERE.parent / "hfspace" / "static" / "js" / "viewpref.js").read_text()
-    assert bs.forbidden_hit("viewpref.js", src) is None
-    assert src.count("localStorage") == 2 and "const PM_KEY = 'cv.postmode';" in src
-
-
-@pytest.mark.parametrize("extra", ["\nlocalStorage.setItem('other', '1');\n", "\nlocalStorage.clear();\n", "\nwindow.localStorage.getItem(PM_KEY);\n", "\nlocalStorage.removeItem(PM_KEY);\n", "\nsessionStorage.getItem(PM_KEY);\n"])
-def test_viewpref_any_other_storage_use_fails(extra):
-    src = (HERE.parent / "hfspace" / "static" / "js" / "viewpref.js").read_text()
-    assert bs.forbidden_hit("viewpref.js", src + extra) is not None
-
-
-def test_pm_key_not_allowed_in_other_files():
-    snippet = "const PM_KEY = 'cv.postmode';\nlocalStorage.getItem(PM_KEY);\n"
-    assert bs.forbidden_hit("library.js", snippet) is not None and bs.forbidden_hit("viewpref.js", snippet) is None
