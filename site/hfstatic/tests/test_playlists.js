@@ -87,7 +87,7 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       await openFolder(page, S1);
       ok((await page.$$('ul.grid.moments li.card .pinfo')).length >= 2, 'Post info ON: each card shows the post-ready block');
       ok((await page.textContent(card('a1') + ' .pi-cap')).includes('Caption for a1 #boss'), 'the block shows the clip post caption when the moment is in no playlist');
-      ok(await page.isVisible(card('a1') + ' .pi-copy') && await page.isVisible(card('a1') + ' .pi-mark') && await page.isVisible(card('a1') + ' .pi-add'), 'block has Copy caption, Mark posted, Add to playlist');
+      ok(await page.isVisible(card('a1') + ' .pi-copy') && await page.isVisible(card('a1') + ' .po-ctl') && !(await page.$(card('a1') + ' .pi-mark')) && await page.isVisible(card('a1') + ' .pi-add'), 'block has Copy caption, the Posted on chips (no Mark posted button), Add to playlist');
       await page.click(card('a1') + ' .pi-copy'); await sleep(150);
       ok((await page.evaluate(() => window.__copied.at(-1) || '')).startsWith('Caption for a1 #boss'), 'Copy caption copies the caption');
       await page.click('#pm-toggle'); await sleep(200);
@@ -188,22 +188,23 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       ok(csv.startsWith('title,caption,hashtags,platform,status,link,version,versions,clip_link\r\n') && csv.split('\r\n').length === 6 && !csv.includes('Gone'), 'CSV: header + 2 live items x 2 platforms, stale item ignored');
       // mark posted
       ok(hub.requests.length > 0, 'requests logged');
-      await page.click(`[data-k="${K.a1}"] .pl-mark`); await modal(page); await page.selectOption('#mp-platform', 'youtube'); await page.fill('#mp-date', '2026-11-23'); await page.fill('#mp-link', 'https://youtube.com/shorts/abc'); await foot(page, 'Mark posted'); await modalGone(page); await sleep(350);
-      p0 = plDoc(hub).playlists[0]; ok(p0.items.find(i => i.moment_id === K.a1).posted.youtube.link === 'https://youtube.com/shorts/abc', 'mark posted: platform, date and link stored in playlists.json');
+      // D53: the Posted on chips on a playlist item write _config/posted.json (the old Mark posted dialog is gone); progress reads the merged state
+      const poD = () => JSON.parse(hub.text('_config/posted.json')).posted, chipP = (k, p) => `[data-k="${k}"] .po-chip[data-p="${p}"]`;
+      ok((await page.locator('.pl-mark').count()) === 0 && (await page.locator('.pl-item .po-ctl').count()) === 2, 'playlist items have the Posted on chips and no Mark posted button');
+      await page.click(chipP(K.a1, 'youtube')); await sleep(700);
+      ok(/^\d{4}-\d\d-\d\d$/.test(poD()[K.a1].youtube.date) && !JSON.stringify(plDoc(hub)).includes('"date"'), 'chip: stored in posted.json, playlists.json untouched');
       ok((await page.textContent('.pl-prog-t')).includes('0 of 2'), 'progress waits for every playlist platform (youtube + x)');
-      await page.click(`[data-k="${K.a1}"] .pl-mark`); await modal(page); await page.selectOption('#mp-platform', 'x'); await foot(page, 'Mark posted'); await modalGone(page); await sleep(350);
-      await page.click(`[data-k="${K.b2}"] .pl-mark`); await modal(page); await page.fill('#mp-link', 'javascript:alert(1)'); await foot(page, 'Mark posted');
-      ok((await page.textContent('dialog.pl-modal[open] .field-err')).includes('http'), 'a non-http link is refused in the dialog'); await page.fill('#mp-link', ''); await foot(page, 'Cancel'); await modalGone(page);
-      for (const k of ['youtube', 'x']) { await page.click(`[data-k="${K.b2}"] .pl-mark`); await modal(page); await page.selectOption('#mp-platform', k); await foot(page, 'Mark posted'); await modalGone(page); await sleep(350); }
+      await page.click(chipP(K.a1, 'x')); await sleep(700);
+      for (const k of ['youtube', 'x']) { await page.click(chipP(K.b2, k)); await sleep(700); }
       ok((await page.textContent('.pl-prog-t')).includes('2 of 2') && await page.isVisible('.pl-setposted'), 'all posted: progress 2 of 2 and the playlist suggests status "posted"');
       const pr = await page.$eval('.pl-head progress', e => e.value); ok(pr === 100, 'progress bar at 100');
       await page.click('.pl-setposted'); await sleep(350); ok(plDoc(hub).playlists[0].status === 'posted', 'playlist status set to posted on request');
       // library filter reads playlists.json posted info
       await page.evaluate(() => { location.hash = '#/'; }); await page.waitForSelector('.folder-grid .folder');
       await page.click('#filter-btn'); await sleep(200);
-      ok((await page.$$('.chip[data-kind="postedon"][data-key="youtube"], .chips [aria-pressed]:has-text("YouTube")')).length > 0, 'Library "Posted on" filter lists YouTube from the playlist tracker');
+      ok((await page.$$('.chip[data-kind="postedon"][data-key="youtube"], .chips [aria-pressed]:has-text("YouTube")')).length > 0, 'Library "Posted on" filter lists YouTube from posted.json');
       await openFolder(page, S1);
-      ok((await page.$$(card('a1') + ' .po-badge[data-p="youtube"]')).length === 1, 'card badge: Posted on YouTube (from playlists.json)');
+      ok((await page.$$(card('a1') + ' .po-badge[data-p="youtube"]')).length === 1, 'card badge: Posted on YouTube (from posted.json)');
       await ctx.close();
       ok(errs.length === 0, 'no console / CSP errors (playlist session)'); if (errs.length) console.log(errs.slice(0, 3));
     }

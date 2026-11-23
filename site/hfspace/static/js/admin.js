@@ -3,7 +3,7 @@ import { h, btn, icon } from './dom.js';
 import * as api from './api.js';
 import { toast } from './toast.js';
 import { createModal, haptic, shake, announce } from './a11y.js';
-import { titleOf, norm, postedOnOf, PLATFORMS } from './fmt.js';
+import { titleOf, norm, postedOnOf, platformLabel, PLATFORMS } from './fmt.js';
 import { exact, timeEl } from './time.js';
 import { loadAll } from './data.js';
 
@@ -152,7 +152,7 @@ export function editForm(clip, { close }) {
   // Library fields (reaction, kind, tier, why): only offered when the backend can store them (static mode, me().capabilities.moments).
   const moments = state.me?.capabilities?.moments === true;
   const MKEYS = ['reaction', 'kind', 'tier', 'why'];
-  if (moments) { for (const k of MKEYS) init[k] = clip[k] == null ? '' : String(clip[k]); init.posted_on = postedOnOf(clip).join(','); }
+  if (moments) { for (const k of MKEYS) init[k] = clip[k] == null ? '' : String(clip[k]); init.posted_on = PLATFORMS.map(p => p[0]).filter(k => Array.isArray(clip.posted_on) && clip.posted_on.includes(k)).join(','); }
   const sibling = moments && clip.group ? state.clips.find(x => x.id !== clip.id && x.group === clip.group && (x.stream || '') === (clip.stream || '')) : null;
   const cur = { ...init, ...(d?.vals || {}) };
   const mk = (key, label, type, opts = {}) => {
@@ -176,7 +176,10 @@ export function editForm(clip, { close }) {
     Object.defineProperty(grp, 'value', { get: () => boxes.filter(b => b.cb.checked).map(b => b.k).join(','), set: v => { const on = String(v || '').split(','); for (const b of boxes) b.cb.checked = on.includes(b.k); } });
     grp.value = cur.posted_on; grp.dataset.key = 'posted_on';
     const pe = h('p', { class: 'field-err', id: 'ef-posted_on-e', role: 'alert' });
-    F.posted_on = { el: grp, e: pe, wrap: h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Posted on' }), grp, pe) };
+    // D53: the quick "Posted on" chips write _config/posted.json (and old playlist marks count too). They are listed here read-only; these boxes edit only the index field.
+    const elseOn = PLATFORMS.map(p => p[0]).filter(k => postedOnOf(clip).includes(k) && !(Array.isArray(clip.posted_on) && clip.posted_on.includes(k)));
+    const note = h('p', { class: 'muted small po-note', text: elseOn.length ? `Also shown as posted from the quick chips or a playlist (read-only here): ${elseOn.map(platformLabel).join(', ')}.` : 'The quick Posted on chips on the card and in Post mode are saved separately and also count.' });
+    F.posted_on = { el: grp, e: pe, wrap: h('div', { class: 'field' }, h('span', { class: 'lbl', text: 'Posted on' }), grp, note, pe) };
   }
   const both = sibling ? h('input', { type: 'checkbox', id: 'ef-both', checked: true }) : null;
   const form = h('form', { class: 'edit', novalidate: '', 'aria-label': 'Edit clip' }, dl, ...Object.values(F).map(f => f.wrap), both ? h('label', { class: 'check-row' }, both, h('span', { text: 'Apply reaction, category, tier, why and posted on to both versions' })) : null);

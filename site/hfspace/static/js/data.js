@@ -1,12 +1,18 @@
 import { state, emit, isAdmin } from './state.js';
 import * as api from './api.js';
-import { postedMap } from './playlists.js';
+import { postedHook } from './playlists.js';
+import { postedUnion } from './posted.js';
 import { postedExtra } from './fmt.js';
 
-export function setPlaylistsDoc(doc) { state.playlists = doc; postedExtra.map = postedMap(doc); }
+// D53: platforms marked posted in posted.json or in a playlist (moment key -> Set), counted next to clip.posted_on by postedOnOf.
+const recomputePosted = () => { postedExtra.map = postedUnion(state.postedDoc, state.playlists); };
+postedHook.get = (key, p) => !!postedExtra.map.get(key)?.has(p);
+export function setPlaylistsDoc(doc) { state.playlists = doc; recomputePosted(); }
+export function setPostedDoc(doc) { state.postedDoc = doc; recomputePosted(); }
 export async function loadPlaylistData() {
-  const [p, t] = await Promise.all([api.listPlaylists().catch(() => null), api.listTemplates().catch(() => null)]);
-  if (p?.doc) { setPlaylistsDoc(p.doc); state.plExists = p.exists !== false; }
+  const [p, t, po] = await Promise.all([api.listPlaylists().catch(() => null), api.listTemplates().catch(() => null), api.listPosted().catch(() => null)]);
+  if (po?.doc) { state.pdExists = po.exists !== false; state.postedDoc = po.doc; }
+  if (p?.doc) { setPlaylistsDoc(p.doc); state.plExists = p.exists !== false; } else recomputePosted();
   if (t?.doc) { state.templates = t.doc; state.tplExists = t.exists !== false; }
   state.plLoaded = true;
 }

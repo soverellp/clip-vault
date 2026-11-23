@@ -4,6 +4,8 @@
 //   load      unlock, folders render, Playlists button works
 //   qa        phone 390 + PC 1280 x Post info ON/OFF: library, folder cards (no overlapping rects), clip detail, Post mode feed, Playlists, templates, share, add popup;
 //             console/page errors, 404s, horizontal scroll, broken images
+//   posted    'Posted on' chips (D53): toggle YouTube ON on a real moment (phone width), check it persists after a reload and shows in the
+//             Library 'Posted on' filter, toggle it OFF again and check it is gone after another reload; screenshots posted_*.png
 //   roundtrip add a clip to a throwaway playlist 'zz probe', remove it, DELETE the playlist again (needs the saving key in config.json)
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs'), os = require('os');
@@ -22,7 +24,7 @@ let bad = 0; const say = (c, m) => { if (!c) bad++; console.log((c ? 'ok ' : 'FA
     const page = await ctx.newPage();
     page.on('pageerror', e => errs.push('pageerror ' + clean(e)));
     page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console ' + clean(m.text())); });
-    page.on('response', r => { if (r.status() === 404 && !/_config\/(playlists|templates|shortlist)\.json/.test(r.url())) notFound.push(clean(r.url().replace(/\?.*/, '')).replace(/^https?:\/\/[^/]+/, '')); });
+    page.on('response', r => { if (r.status() === 404 && !/_config\/(playlists|templates|shortlist|posted)\.json/.test(r.url())) notFound.push(clean(r.url().replace(/\?.*/, '')).replace(/^https?:\/\/[^/]+/, '')); });
     await page.goto(URL_);
     await page.waitForSelector('#signin:not([hidden]) #pp-input', { timeout: 20000 });
     await page.uncheck('#remember-cb').catch(() => {});
@@ -44,7 +46,7 @@ let bad = 0; const say = (c, m) => { if (!c) bad++; console.log((c ? 'ok ' : 'FA
     const hit = (a, b) => a.w > 0 && a.h > 0 && b.w > 0 && b.h > 0 && a.x < b.r - 1 && b.x < a.r - 1 && a.y < b.b - 1 && b.y < a.b - 1;
     const cards = [...document.querySelectorAll('ul.grid.moments li.card:not(.sk)')].filter(c => c.offsetParent), bad = [];
     for (const c of cards) {
-      const all = ['.poster', '.title', '.tpill', '.vpill'].map(q => [q, c.querySelector(q)]).concat([...c.querySelectorAll('.pinfo > *')].map(e => ['pinfo>' + e.className, e])).filter(([, e]) => e && e.offsetParent);
+      const all = ['.poster', '.title', '.tpill', '.vpill'].map(q => [q, c.querySelector(q)]).concat([...c.querySelectorAll('.pinfo > *')].map(e => ['pinfo>' + e.className, e])).concat([...c.querySelectorAll('.po-item')].map(e => ['po-item', e])).filter(([, e]) => e && e.offsetParent);
       for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) { const [qa, ea] = all[i], [qb, eb] = all[j]; if (!ea.contains(eb) && !eb.contains(ea) && hit(box(ea), box(eb))) bad.push(qa + ' x ' + qb); }
       const cb = box(c); if ([...c.querySelectorAll('.card-in, .pinfo')].some(k => box(k).b > cb.b + 1)) bad.push('content sticks out of the card');
     }
@@ -83,6 +85,35 @@ let bad = 0; const say = (c, m) => { if (!c) bad++; console.log((c ? 'ok ' : 'FA
         await page.click('dialog.pl-modal[open] .modal-foot button:has-text("Cancel")'); await modalGone(page);
         await ctx.close();
       }
+    } else if (MODE === 'posted') {
+      const chipSel = (key, p) => `ul.grid.moments li.card[data-key="${key}"] .po-chip[data-p="${p}"]`;
+      const pick = async page => {   // first card with all 5 chips off: a real moment the dataset does not mark yet
+        await page.waitForSelector('ul.grid.moments li.card:not(.sk) .po-chip', { timeout: 20000 }); await sleep(900);
+        return page.$$eval('ul.grid.moments li.card:not(.sk)', lis => { for (const li of lis) { const c = [...li.querySelectorAll('.po-chip')]; if (c.length === 5 && c.every(x => x.getAttribute('aria-pressed') === 'false')) return li.dataset.key; } return null; });
+      };
+      let { ctx, page } = await open(390, 844); await openFolder(page); await setPostInfo(page, true);
+      const key = await pick(page); say(!!key, 'found a real moment with no posted mark'); if (!key) throw new Error('no free moment');
+      const card = `ul.grid.moments li.card[data-key="${key}"]`, chip = chipSel(key, 'youtube');
+      say((await page.$$(card + ' .po-chip')).length === 5 && !(await page.$(card + ' .pi-mark')), 'card has 5 Posted on chips, old Mark posted button gone');
+      const sm = await page.$$eval(card + ' .po-chip, ' + card + ' .po-det', els => els.filter(e => e.offsetParent && (e.getBoundingClientRect().height < 43.5 || e.getBoundingClientRect().width < 43.5)).length); say(sm === 0, 'chips are >= 44 px');
+      const o = await overlaps(page); say(o.bad.length === 0, `${o.n} cards, no overlapping rects` + (o.bad.length ? ' ' + JSON.stringify(o.bad) : ''));
+      await page.evaluate(k => document.querySelector(`li.card[data-key="${k}"]`).scrollIntoView({ block: 'center' }), key); await sleep(400);
+      await page.click(chip); say((await page.getAttribute(chip, 'aria-pressed')) === 'true', 'tap YouTube: chip on at once');
+      await page.waitForSelector('.toast [data-act="undo"]', { timeout: 10000 }); say(true, 'toast with Undo: ' + (await toasts(page)).join(' | ').slice(0, 100));
+      await sleep(5000); await shot(page, 'posted_on');
+      await page.screenshot({ path: path.join(OUT, PFX + 'posted_card.png'), clip: await page.$eval(card, e => { const r = e.getBoundingClientRect(); return { x: Math.max(0, r.x), y: Math.max(0, r.y), width: Math.min(r.width, innerWidth), height: Math.min(r.height, innerHeight - Math.max(0, r.y)) }; }) });
+      await ctx.close();
+      ({ ctx, page } = await open(390, 844)); await openFolder(page); await setPostInfo(page, true); await page.waitForSelector(chip, { timeout: 20000 }); await sleep(900);
+      say((await page.getAttribute(chip, 'aria-pressed')) === 'true', 'after a fresh load (new session): YouTube is still on = persisted in the dataset');
+      await page.click('#filter-btn'); await sleep(300);
+      await page.click('.chip[data-kind="postedon"]:has(.lbl:text-is("YouTube"))'); await sleep(600);
+      say(!!(await page.$(card)), 'Library "Posted on: YouTube" filter shows the moment'); await page.click('.chip[data-kind="postedon"]:has(.lbl:text-is("YouTube"))'); await sleep(300);
+      await page.evaluate(k => document.querySelector(`li.card[data-key="${k}"]`).scrollIntoView({ block: 'center' }), key); await sleep(400);
+      await page.click(chip); say((await page.getAttribute(chip, 'aria-pressed')) === 'false', 'tap YouTube again: chip off at once');
+      await sleep(6000); await ctx.close();
+      ({ ctx, page } = await open(390, 844)); await openFolder(page); await setPostInfo(page, true); await page.waitForSelector(chip, { timeout: 20000 }); await sleep(900);
+      say((await page.getAttribute(chip, 'aria-pressed')) === 'false', 'after another fresh load: YouTube is off again = dataset back to how it began');
+      await shot(page, 'posted_off'); await ctx.close();
     } else if (MODE === 'cleanup') {
       const { ctx, page } = await open(1280, 800); await go(page, '#/playlists', '.pl-bar'); await sleep(1500);
       for (let i = 0; i < 5; i++) { const card = '.pl-card:has-text("zz probe")'; if (!(await page.$(card))) break;

@@ -8,6 +8,7 @@ import { human, dur, bitrate, scoreText, pretty, titleOf, tagsOf, postedOnOf, pl
 import { parsePost, countOf, copyAll } from './post.js';
 import { toast } from './toast.js';
 import { announce, trapFocus, haptic } from './a11y.js';
+import { postedControl } from './postedui.js';
 import { postInfoBlock, addControl, playlistsNav, ensureCss } from './plui.js';
 import { momentKey } from './shortlist.js';
 import { copyText, shareClip, chips, postedOf, toggleBtn, setNotes, PLATFORMS, NOTES_MAX, startPost, canShortlist, shortlisted, toggleShortlist, SHL_HINT } from './kit.js';
@@ -144,7 +145,6 @@ function render(c) {
     { ensureCss(); const pb = addControl(() => [momentKey(c)], () => titleOf(c), { cls: 'pl-add-d', main: 'pl-add-d' }); pb.querySelector('.pl-add-d').id = 'btn-playlist'; plRow = h('div', { class: 'pl-d-row' }, pb); }
     shlClip = c; shlBtn = btn('Shortlist', { ic: 'star', cls: 'shl-btn', on: () => { if (shlBtn?.getAttribute('aria-disabled') !== 'true') toggleShortlist(shlClip); else toast(SHL_HINT + '.'); } }); shlBtn.id = 'btn-shortlist';
     shlHint = h('span', { class: 'shl-hint', id: 'shl-hint' }); dbar.append(shlBtn, shlHint); paintShl();
-    if (canWrite()) for (const pl of PLATFORMS) { const t = toggleBtn(c, pl, { cls: 'sm' }); toggles.push(t); dbar.append(t); }
   }
   livePost = cl => { posting.update(cl); for (const t of toggles) t.update(cl); const old = info.querySelector('.pchips'); if (old) old.replaceWith(chips(cl)); };
   const tags = tagsOf(c);
@@ -179,7 +179,7 @@ function render(c) {
     if (hadDraft) { form.hidden = false; info.hidden = true; actions.hidden = true; }
   }
   actions.hidden = !actions.children.length; head.append(info, form, actions);
-  const panel = h('div', { class: 'panel' }, head, ...(plRow ? [plRow] : []), ...(trashed || !state.postMode ? [] : [postInfoBlock(c)]), ...(trashed ? [] : [posting.el]), details(c, trashed), postKit(c));
+  const panel = h('div', { class: 'panel' }, head, ...(plRow ? [plRow] : []), ...(trashed ? [] : [state.postMode ? postInfoBlock(c) : h('div', { class: 'po-panel' }, h('h3', { class: 'po-h', text: 'Posted on' }), postedControl(c))]), ...(trashed ? [] : [posting.el]), details(c, trashed), postKit(c));
   body.append(h('div', { class: 'drawer-grid' }, h('div', { class: 'stage' }, player.el), panel), dbar);
   dlg.querySelector('.drawer-scroll').scrollTop = 0;
 }

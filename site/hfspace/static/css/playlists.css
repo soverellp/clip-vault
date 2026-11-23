@@ -118,3 +118,24 @@ a.pl-card-t:hover{text-decoration:underline}
 .f-more{position:absolute;top:0;right:0;z-index:3;width:44px;height:44px;display:grid;place-items:center;border:0;border-radius:50%;background:var(--glass,rgba(10,10,20,.6));color:var(--text);cursor:pointer}
 .f-more:focus-visible{outline:2px solid var(--a1)}
 .pl-gone{margin-top:8px}
+/* Posted on chips (D53): 5 toggle chips per moment, 44 px touch targets, wraps instead of scrolling */
+.po-ctl{display:grid;gap:4px;min-width:0}
+.po-row{display:flex;flex-wrap:wrap;gap:6px;min-width:0}
+.po-item{display:inline-flex;align-items:stretch;min-width:0;border-radius:99px}
+.po-chip,.po-det{min-height:44px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:inherit;font-size:.86rem;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px}
+.po-chip{padding:0 14px;min-width:44px;border-radius:99px;font-weight:600}
+.po-chip .ic{width:16px;height:16px}
+.po-chip.on{background:color-mix(in srgb,var(--ok) 22%,var(--panel));border-color:var(--ok);color:var(--ok);font-weight:700}
+.po-chip[aria-disabled="true"]{opacity:.7}
+.po-item:has(.po-det:not([hidden])) .po-chip{border-top-right-radius:0;border-bottom-right-radius:0;border-right:0}
+.po-det{width:44px;padding:0;border-radius:0 99px 99px 0;border-color:var(--ok);color:var(--ok)}
+.po-det .ic{width:16px;height:16px}
+.po-det[hidden]{display:none}
+.po-chip:focus-visible,.po-det:focus-visible{outline:2px solid var(--a1);outline-offset:2px}
+.po-else{margin:0;font-size:.78rem;color:var(--muted);overflow-wrap:anywhere}
+.po-else[hidden]{display:none}
+.po-panel{margin:0 0 12px;padding:10px 12px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+.po-h{margin:0 0 6px;font-size:.9rem}
+.pm-po{flex:1;min-width:0}
+.pm-row.pm-posted{flex-wrap:wrap}
+.pl-item .po-ctl{margin-top:6px}

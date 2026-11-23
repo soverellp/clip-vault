@@ -1,4 +1,4 @@
-// Playlists UI part 1 (small, loaded with the library): store actions, "Add to playlist", "Mark posted", and the post-ready info block on cards and in the detail.
+// Playlists UI part 1 (small, loaded with the library): store actions, "Add to playlist", the post-ready info block (Posted on chips: postedui.js) on cards and in the detail.
 // Everything is built with textContent (dom.js h()); user text never becomes HTML.
 import { state, emit, on } from './state.js';
 import { h, btn, icon } from './dom.js';
@@ -9,9 +9,10 @@ import { copyText } from './kit.js';
 import { titleOf } from './fmt.js';
 import { momentKey, liveKeys } from './shortlist.js';
 import { parsePost } from './post.js';
-import { PL_PLATFORMS, PL_LABEL, normTags, repClip, playlistsOf, captionText, newId, postedPlatforms } from './playlists.js';
+import { PL_LABEL, normTags, repClip, playlistsOf, captionText, newId, postedPlatforms } from './playlists.js';
 import { PRESETS, renderPost } from './templates.js';
 import { setPlaylistsDoc } from './data.js';
+import { postedControl } from './postedui.js';
 
 let cssDone = false;
 export function ensureCss() {
@@ -26,7 +27,7 @@ export const roMsg = () => RO_HINT + '.' + (RO_WHY[state.me?.shortlist_state] ? 
 export const streamOf = c => state.folders.find(f => f.id === c?.stream) || null;
 export const effectiveTemplates = () => (state.tplExists === false && !state.templates.templates.length ? PRESETS : state.templates.templates);
 export const templateById = id => effectiveTemplates().find(t => t.id === id) || null;
-const errText = e => (e?.status === 409 ? 'Someone else saved at the same time. Try again.' : e?.status === 404 ? (e.message || 'That item was changed or removed by someone else.') : e?.status === 403 ? RO_HINT + '. ' + RO_WHY.rejected : e?.status === 502 ? 'The saved file could not be read, so nothing was changed.' : 'Could not save. Check the connection and try again.');
+export const errText = e => (e?.status === 409 ? 'Someone else saved at the same time. Try again.' : e?.status === 404 ? (e.message || 'That item was changed or removed by someone else.') : e?.status === 403 ? RO_HINT + '. ' + RO_WHY.rejected : e?.status === 502 ? 'The saved file could not be read, so nothing was changed.' : 'Could not save. Check the connection and try again.');
 
 // One change to playlists.json (read at the parent revision, committed with an audit line: see hubapi.js). -> { ok, doc } or null (a toast says why)
 export async function plAct(op, okMsg) {
@@ -93,55 +94,25 @@ export function playlistsNav(cls = '') {
 }
 on('clips', () => { for (const x of navs) { if (!x.a.isConnected && navs.size > 3) navs.delete(x); else x.paint(); } });
 
-// ---- Mark posted: platform + date + optional link, on the moment's item in every playlist that holds it (stored in playlists.json; the Library filter reads it)
-export function openMarkPosted(c, opener, { only } = {}) {
-  ensureCss();
-  const key = momentKey(c), pls = only ? [only] : playlistsOf(state.playlists, key);
-  const m = createModal({ title: 'Mark posted', desc: titleOf(c), cls: 'pl-modal' });
-  if (!canEditPl()) { m.body.append(h('p', { class: 'pl-ro', text: roMsg() })); m.foot.append(btn('Close', { on: () => m.close(false) })); m.open(); return m; }
-  if (!pls.length) {
-    m.body.append(h('p', { text: 'Posting is tracked inside a playlist. Add this moment to a playlist first.' }));
-    m.foot.append(btn('Add to playlist', { kind: 'primary', on: () => { m.close(true); setTimeout(() => openAddToPlaylist([key], titleOf(c), opener), 0); } }), btn('Close', { on: () => m.close(false) }));
-    m.open(); return m;
-  }
-  const first = pls[0], plat = h('select', { id: 'mp-platform', 'aria-label': 'Platform' }, ...PL_PLATFORMS.map(k => h('option', { value: k, text: PL_LABEL[k], selected: first.platforms[0] === k })));
-  const today = new Date(); const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  const date = h('input', { type: 'date', id: 'mp-date', value: ymd, 'aria-label': 'Date posted' }), link = h('input', { type: 'text', id: 'mp-link', placeholder: 'Link to the post (optional)', maxlength: 500, 'aria-label': 'Link to the post' });
-  const err = h('p', { class: 'field-err', role: 'alert' });
-  const go = async () => {
-    err.textContent = '';
-    if (!/^\d{4}-\d\d-\d\d$/.test(date.value)) { err.textContent = 'Pick the date it was posted.'; return; }
-    const l = link.value.trim(); if (l && (/\s/.test(l) || !/^https?:\/\//i.test(l))) { err.textContent = 'The link must start with http:// or https:// and have no spaces.'; return; }
-    let ok = true;
-    for (const p of pls) { const r = await plAct({ type: 'mark_posted', id: p.id, moment_id: key, platform: plat.value, date: date.value, link: l }); if (!r) { ok = false; break; } }
-    if (ok) { toast(`Marked posted on ${PL_LABEL[plat.value]}`, { kind: 'success', timeout: 1800 }); announce('Marked posted'); m.close(true); }
-  };
-  m.body.append(h('div', { class: 'pl-form' }, h('label', null, h('span', { text: 'Platform' }), plat), h('label', null, h('span', { text: 'Date' }), date), h('label', null, h('span', { text: 'Link' }), link), err,
-    pls.length > 1 ? h('p', { class: 'muted', text: `Applies to this moment in ${pls.length} playlists.` }) : null));
-  m.foot.append(btn('Cancel', { on: () => m.close(false) }), btn('Mark posted', { kind: 'primary', ic: 'check', on: go }));
-  m.dialog.addEventListener('close', () => { if (opener?.isConnected) setTimeout(() => opener.focus?.(), 0); }, { once: true });
-  m.open(plat); return m;
-}
-
-// ---- the post-ready block (Post info switch ON): post title, caption, hashtags, platform badges, Copy caption, Mark posted, Add to playlist
-export function postInfoBlock(c) {
+// ---- the post-ready block (Post info switch ON): post title, caption, hashtags, planned-platform badges, the Posted on chips (D53), Copy caption, Add to playlist
+export function postInfoBlock(c, { control = true } = {}) {
   const info = momentPost(c), p = info.post;
-  const badges = [...new Set([...info.platforms, ...info.posted])].map(k => h('span', { class: 'pi-badge' + (info.posted.has(k) ? ' on' : ''), 'data-p': k, title: info.posted.has(k) ? `Posted on ${PL_LABEL[k]}` : `Planned for ${PL_LABEL[k]}`, text: (info.posted.has(k) ? '✓ ' : '') + PL_LABEL[k] }));
+  const badges = [...info.platforms].map(k => h('span', { class: 'pi-badge', 'data-p': k, title: `Planned for ${PL_LABEL[k]}`, text: PL_LABEL[k] }));
   const copyB = btn('Copy caption', { ic: 'copy', cls: 'sm pi-copy', on: e => { e.preventDefault(); e.stopPropagation(); const t = captionText(p) || p.title; if (!t) { toast('No caption yet.'); return; } copyText(t, 'Caption copied', e.currentTarget); } });
-  const markB = btn('Mark posted', { ic: 'check', cls: 'sm pi-mark', on: e => { e.preventDefault(); e.stopPropagation(); openMarkPosted(c, e.currentTarget); } });
   const addB = addControl(() => [momentKey(c)], () => titleOf(c), { short: true });
   return h('div', { class: 'pinfo', 'data-source': info.source },
     h('p', { class: 'pi-title', text: p.title || '(no post title)' }),
     h('p', { class: 'pi-cap', text: p.caption || '(no caption yet)' }),
     p.hashtags.length ? h('p', { class: 'pi-tags', text: p.hashtags.join(' ') }) : null,
-    badges.length ? h('div', { class: 'pi-badges', 'aria-label': 'Platforms' }, ...badges) : null,
-    h('div', { class: 'pi-actions' }, copyB, markB, addB));
+    badges.length ? h('div', { class: 'pi-badges', 'aria-label': 'Planned platforms' }, ...badges) : null,
+    control ? postedControl(c) : null,
+    h('div', { class: 'pi-actions' }, copyB, addB));
 }
 // Card: keep ONE .pinfo block under the card link; rebuilt when its content changes, removed when the switch is off or in the trash.
 export function paintPostInfo(li, c, view) {
   const old = li.querySelector(':scope > .pinfo');
   if (view !== 'library' || !state.postMode) { old?.remove(); li.classList.remove('has-pinfo'); return; }
-  const sig = JSON.stringify([c.id, momentPost(c).post, [...momentPost(c).posted], [...momentPost(c).platforms]]);
+  const sig = JSON.stringify([c.id, momentPost(c).post, [...momentPost(c).platforms]]);   // posted state is NOT part of it: the chips repaint themselves (focus stays)
   if (old && old.dataset.sig === sig) return;
   const nw = postInfoBlock(c); nw.dataset.sig = sig;
   if (old) old.replaceWith(nw); else li.append(nw);

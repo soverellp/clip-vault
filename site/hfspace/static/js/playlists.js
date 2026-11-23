@@ -182,7 +182,10 @@ export const liveItems = (p, activeClips) => p.items.filter(i => !isStale(i, act
 // Platforms an item is posted on (only platforms listed in `only` when given).
 export const postedPlatforms = (item, only) => PL_PLATFORMS.filter(k => item.posted?.[k] && (!only || only.includes(k)));
 // An item counts as posted when it is posted on every platform of the playlist (or on any platform when the playlist lists none).
-export const itemDone = (p, item) => (p.platforms.length ? p.platforms.every(k => item.posted?.[k]) : postedPlatforms(item).length > 0);
+// D53: the merged posted state (posted.json + index + legacy marks) is read through postedHook.get(moment_id, platform), set by data.js.
+export const postedHook = { get: null };
+const isPosted = (item, k) => !!(item.posted?.[k] || postedHook.get?.(item.moment_id, k));
+export const itemDone = (p, item) => (p.platforms.length ? p.platforms.every(k => isPosted(item, k)) : PL_PLATFORMS.some(k => isPosted(item, k)));
 export function progress(p, activeClips) {
   const live = liveItems(p, activeClips), done = live.filter(i => itemDone(p, i)).length;
   return { done, total: live.length, pct: live.length ? Math.round(done * 100 / live.length) : 0 };

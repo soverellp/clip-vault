@@ -4,6 +4,7 @@
 // Exports the same names as site/hfspace/static/js/api.js (the build checks this). Nothing is ever put in storage.
 import { state, emit } from './state.js';
 import { parseShortlist, parseShortlistStrict, serializeShortlist, toggleEntry } from './shortlist.js';
+import { parsePosted, parsePostedStrict, serializePosted, applyPostedOp } from './posted.js';
 import { parsePlaylists, parsePlaylistsStrict, serializePlaylists, applyPlaylistOp } from './playlists.js';
 import { parseTemplates, parseTemplatesStrict, serializeTemplates, applyTemplateOp } from './templates.js';
 
@@ -604,6 +605,7 @@ export async function setShortlist(key, on, note) {
 // file as read at the PARENT revision, committed with an audit line (actor 'shortlist'); an unreadable existing file fails instead of being overwritten.
 const CFGDOCS = {
   playlists: { path: '_config/playlists.json', parse: parsePlaylists, strict: parsePlaylistsStrict, ser: serializePlaylists, apply: (d, op, now) => applyPlaylistOp(d, op, now), key: 'playlistsP' },
+  posted: { path: '_config/posted.json', parse: parsePosted, strict: parsePostedStrict, ser: serializePosted, apply: (d, op) => applyPostedOp(d, op), key: 'postedP' },
   templates: { path: '_config/templates.json', parse: parseTemplates, strict: parseTemplatesStrict, ser: serializeTemplates, apply: (d, op) => applyTemplateOp(d, op), key: 'templatesP' },
 };
 async function readCfgDoc(kind) {
@@ -638,7 +640,7 @@ async function writeCfgDoc(kind, op) {
       if (!res.changed) return { ok: true, doc: res.doc };
       const apath = `_audit/${now.toISOString().slice(0, 7)}.jsonl`;
       let old = (await slRead(apath, rev)) || ''; if (old && !old.endsWith('\n')) old += '\n';
-      const line = JSON.stringify({ at: isoNow(now), actor: 'shortlist', action: kind + ':' + String(op.type).slice(0, 30), clip_id: null, detail: op.type === 'multi' ? { ids: [...new Set((op.ops || []).map(o => String(o?.id || '').slice(0, 80)).filter(Boolean))].slice(0, 12) } : { id: String(op.id || op.template?.id || '').slice(0, 80) } });
+      const line = JSON.stringify({ at: isoNow(now), actor: 'shortlist', action: kind + ':' + String(op.type).slice(0, 30), clip_id: null, detail: op.type === 'multi' ? { ids: [...new Set((op.ops || []).map(o => String(o?.id || '').slice(0, 80)).filter(Boolean))].slice(0, 12) } : { id: String(op.id || op.template?.id || op.moment_id || '').slice(0, 80), ...(op.platform ? { platform: String(op.platform).slice(0, 20) } : {}) } });
       const lines = [{ key: 'header', value: { summary: res.summary, description: '', parentCommit: rev } },
         { key: 'file', value: { content: b64(utf8(D.ser(res.doc))), path: D.path, encoding: 'base64' } },
         { key: 'file', value: { content: b64(utf8(old + line + '\n')), path: apath, encoding: 'base64' } }];
@@ -656,6 +658,8 @@ async function writeCfgDoc(kind, op) {
 }
 export const listPlaylists = () => readCfgDoc('playlists');
 export const updatePlaylists = op => writeCfgDoc('playlists', op);
+export const listPosted = () => readCfgDoc('posted');
+export const updatePosted = op => writeCfgDoc('posted', op);
 export const listTemplates = () => readCfgDoc('templates');
 export const updateTemplates = op => writeCfgDoc('templates', op);
 

@@ -81,6 +81,8 @@ export const setShortlist = async () => { throw new ApiError(400, { error: 'unsu
 // Playlists and templates (static mode only, D47). Server mode has none: empty read-only documents.
 export const listPlaylists = async () => ({ doc: { version: 1, playlists: [] }, exists: false, can_write: false });
 export const updatePlaylists = async () => { throw new ApiError(400, { error: 'unsupported', message: 'Playlists are not available in server mode.' }); };
+export const listPosted = async () => ({ doc: { version: 1, posted: {} }, exists: false, can_write: false });
+export const updatePosted = async () => { throw new ApiError(400, { error: 'unsupported', message: 'Posted marks are not available in server mode.' }); };
 export const listTemplates = async () => ({ doc: { version: 1, templates: [] }, exists: false, can_write: false });
 export const updateTemplates = async () => { throw new ApiError(400, { error: 'unsupported', message: 'Templates are not available in server mode.' }); };
 

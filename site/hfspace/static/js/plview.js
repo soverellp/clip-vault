@@ -10,7 +10,8 @@ import { liveKeys } from './shortlist.js';
 import { PL_PLATFORMS, PL_LABEL, PL_STATUS, normTags, repClip, isStale, liveItems, progress, suggestStatus, itemDone, captionText, playlistText, playlistCsv, newId, itemModes, pickMode, comboLabel, playlistLinkPath, shareText } from './playlists.js';
 import { readPlPref, writePlPref } from './viewpref.js';
 import { validatePost, applyTemplateToItems, renderPost } from './templates.js';
-import { ensureCss, canEditPl, RO_HINT, roMsg, plAct, streamOf, effectiveTemplates, templateById, openMarkPosted, addShortlistedToPlaylist, newItemPost } from './plui.js';
+import { postedControl } from './postedui.js';
+import { ensureCss, canEditPl, RO_HINT, roMsg, plAct, streamOf, effectiveTemplates, templateById, addShortlistedToPlaylist, newItemPost } from './plui.js';
 
 let focusAfter = null, dragKey = null, lastEl = null, rename = null;   // rename = { id, text } while a title is being edited inline
 const modeMem = new Map();                                              // moment key -> chosen version combo (this visit); the last choice is also remembered per viewer
@@ -169,8 +170,6 @@ function itemRow(p, it, i, n, ro) {
     li.addEventListener('dragleave', () => li.classList.remove('over'));
     li.addEventListener('drop', e => { e.preventDefault(); li.classList.remove('over'); const k = dragKey; dragKey = null; if (k && k !== it.moment_id) { focusAfter = `[data-k="${CSS.escape(k)}"] .pl-handle`; plAct({ type: 'move', id: p.id, moment_id: k, to: i }); } });
   }
-  const plats = p.platforms.length ? p.platforms : PL_PLATFORMS.filter(k => it.posted?.[k]);
-  const postedChips = plats.map(k => h('span', { class: 'pi-badge' + (it.posted?.[k] ? ' on' : ''), 'data-p': k }, it.posted?.[k] ? '✓ ' : '', it.posted?.[k]?.link ? h('a', { href: it.posted[k].link, target: '_blank', rel: 'noopener noreferrer', text: PL_LABEL[k] }) : PL_LABEL[k], it.posted?.[k] ? h('small', { text: ' ' + it.posted[k].date }) : null));
   li.append(handle, h('span', { class: 'pl-n', text: String(i + 1) }), stale ? h('div', { class: 'pl-thumbw' }, img) : h('a', { class: 'pl-thumbw', href: '#/clip/' + encodeURIComponent(c.id), 'aria-label': `Open ${cur ? cur.label : 'clip'}: item ${i + 1}` }, img),
     h('div', { class: 'pl-item-main' },
       h('p', { class: 'pl-item-t', text: stale ? 'No longer in the library' : (it.post.title || titleOf(c)) }),
@@ -178,11 +177,11 @@ function itemRow(p, it, i, n, ro) {
       !stale && it.post.hashtags.length ? h('p', { class: 'pi-tags', text: it.post.hashtags.join(' ') }) : null,
       toggle,
       !stale && c.dur ? h('p', { class: 'muted pl-dur', text: dur(c.dur) }) : null,
-      h('div', { class: 'pi-badges' }, ...postedChips), w.length ? h('ul', { class: 'pl-warn small', 'aria-label': 'Warnings' }, ...w.map(x => h('li', { text: x }))) : null),
+      stale ? null : postedControl(c), w.length ? h('ul', { class: 'pl-warn small', 'aria-label': 'Warnings' }, ...w.map(x => h('li', { text: x }))) : null),
     h('div', { class: 'pl-item-act' }, up, dn,
       stale ? null : btn('Edit', { ic: 'edit', cls: 'sm pl-edit', on: e => openItemEditor(p, it, e.currentTarget), disabled: ro }),
       stale ? null : btn('Copy', { ic: 'copy', cls: 'sm pl-copy', aria: `Copy caption: item ${i + 1}`, on: e => copyText(captionText(it.post) || it.post.title, 'Caption copied', e.currentTarget) }),
-      stale ? null : btn(itemDone(p, it) ? 'Posted' : 'Mark posted', { ic: 'check', cls: 'sm pl-mark', on: e => openMarkPosted(c, e.currentTarget, { only: p }), disabled: ro }), rm));
+      rm));
   return li;
 }
 function titleBlock(p, ro) {

@@ -100,7 +100,7 @@ function fail(e, what) {
   else toast(api.errorText(e, 'That clip'), { kind: 'error' });
 }
 // Optimistic update + rollback. Returns true when saved.
-async function save(c0, fields, what) {
+export async function save(c0, fields, what) {
   const c = findClip(c0.id) || c0, before = c, next = { ...c, ...fields };
   replaceClip(next); emit('clips');
   try {
