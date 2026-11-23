@@ -123,11 +123,6 @@ There is NO passphrase line in the file. `VAULT_PASSPHRASE` is only the wrapper'
 3. Older, NOT in use: the `site/hfvault/` passphrase page on GitHub Pages (replaced by `site/hfstatic`).
 4. Not built: Sign in with Hugging Face on a static Space (friends need HF accounts); GitHub Actions as an admin backend (D31).
 
-## Playlists, templates and Post info (D47, 2026-11-23)
-Anyone who unlocks the site (no admin mode) can create playlists and templates, add moments, reorder, edit post text, mark posted and export (Copy all, CSV). Data: `_config/playlists.json` and `_config/templates.json` in the dataset, written with the shortlist token from the encrypted config (same commit path as the shortlist; audit lines `playlists:*` / `templates:*`). The Library header has a Playlists link and a "Post info" switch (default ON, remembered per viewer). Never touched by `vault_sync.py`, `build_hfvault.py`, `finalise.py`. Deploy: patch deploy of the changed js/css (see above), config.json untouched. Reset: delete the two files in the dataset (the five presets come back from memory). Tests: `node site/hfstatic/tests/test_playlists_logic.mjs`, `node site/hfstatic/tests/test_playlists.js` (mocked Hub).
-
-D51 update: one add popup everywhere (also streams), quick re-save to the last playlists, toasts with Change/Undo, one commit per save, share link `#/playlist/<id>` (only works for people who can unlock the site), versions per item, Playlists button in the title bar. Details: `clip-vault-project/DECISIONS.md` D51.
-
 ## Later
 - Optional, NOT built: keep the code in the GitHub repo `soverellp/clip-vault` and deploy with a GitHub Action (Claude sessions cannot see `clip-vault` yet: the Claude GitHub App needs "All repositories" at https://github.com/settings/installations, and a NEW session). A GitHub Action as the admin backend would keep the write token out of browsers (10-40 s latency).
 - In-site "Change password" screen; a dedicated read token for the gate.

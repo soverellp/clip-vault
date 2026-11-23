@@ -10,7 +10,6 @@ import { kitOf, joinKit, copyText, downloadClip, chips, toggleBtn, PLATFORMS } f
 import { countOf } from './post.js';
 import * as motion from './kit.js';
 import { openShortcuts } from './shortcuts.js';
-import { playlistsNav } from './plui.js';
 
 let dlg, feed, ctr, bMute, bSafe, sheet, handle, bar, kitEl;
 let ids = [], S = [], idx = -1, muted = true, safeOn = false, sheetOpen = false, playTimer = 0, raf = 0, opener = null, pendingIds = null, opening = false;
@@ -41,7 +40,7 @@ function build() {
   sheet = h('aside', { class: 'pm-sheet', 'data-open': 'false', 'aria-label': 'Post kit' }, handle, bar, kitEl);
   dlg = h('dialog', { class: 'pm', tabindex: '-1', 'aria-label': 'Post mode', 'aria-modal': 'true' },
     h('div', { class: 'pm-aur', 'aria-hidden': 'true' }, h('i'), h('i')),
-    h('div', { class: 'pm-top' }, close, h('span', { class: 'grow' }), ctr, playlistsNav('glass pm-pl'), bSafe, bMute, help), feed, sheet);
+    h('div', { class: 'pm-top' }, close, h('span', { class: 'grow' }), ctr, bSafe, bMute, help), feed, sheet);
   document.getElementById('dialogs').append(dlg);
   trapFocus(dlg);
   dlg.addEventListener('cancel', e => { e.preventDefault(); back(); });

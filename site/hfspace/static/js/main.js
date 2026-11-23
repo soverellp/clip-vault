@@ -14,11 +14,10 @@ import { initActions, initBulkBar, renderAudit } from './admin.js';
 import { renderUsers } from './users.js';
 import { openUpload } from './upload.js';
 import { openPalette } from './palette.js';
-import { playlistsNav } from './plui.js';
 import { initMagnet, loadPostMode, postModule, startPost, openShortcuts } from './kit.js';
 
 const root = document.documentElement;
-let shell, signin, topbar, tabs, browse, auditEl, usersEl, plEl, parts = {}, inApp = false;
+let shell, signin, topbar, tabs, browse, auditEl, usersEl, parts = {}, inApp = false;
 
 function buildSignin() {
   const slot = h('div', { class: 'gbtn', id: 'gbtn' });
@@ -45,11 +44,11 @@ function buildShell() {
   const who = h('div', { class: 'who' });
   const outB = btn('', { ic: 'logout', kind: 'ghost', cls: 'icon', aria: 'Sign out', on: () => auth.signOut() }); outB.id = 'signout-btn';
   topbar = h('header', { class: 'topbar glass' }, h('a', { class: 'brand', href: '#/', 'aria-label': 'Clip Vault home' }, h('img', { class: 'brand-logo', 'data-src': '/assets/brand/fragbag-96.png', decoding: 'async', alt: '', width: 32, height: 32 }), h('span', { class: 'display', text: 'FRAGBAG' })),
-    h('span', { class: 'grow' }), ro, upB, playlistsNav('pl-nav-top'), palB, powerB, themeB, who, outB);
+    h('span', { class: 'grow' }), ro, upB, palB, powerB, themeB, who, outB);
   tabs = h('nav', { class: 'tabs', id: 'tabs', 'aria-label': 'Sections', hidden: true });
   const main = h('main', { id: 'main', tabindex: '-1' });
-  browse = h('div', { class: 'view', id: 'browse' }); auditEl = h('div', { class: 'view', id: 'audit-view', hidden: true }); usersEl = h('div', { class: 'view', id: 'users-view', hidden: true }); plEl = h('div', { class: 'view', id: 'pl-view', hidden: true });
-  main.append(tabs, browse, auditEl, usersEl, plEl);
+  browse = h('div', { class: 'view', id: 'browse' }); auditEl = h('div', { class: 'view', id: 'audit-view', hidden: true }); usersEl = h('div', { class: 'view', id: 'users-view', hidden: true });
+  main.append(tabs, browse, auditEl, usersEl);
   shell = h('div', { id: 'shell', hidden: true }, topbar, main);
   document.getElementById('app').append(shell);
   lib.build(browse);
@@ -68,7 +67,7 @@ function showSignin(msg) {
   state.me = null; state.clips = []; state.trash = []; state.folders = []; state.folder = null; state.cat = 'all'; state.postedOn.clear(); state.lang = ''; state.homeFilter.clear(); state.libHash = '#/'; state.loaded = false; state.trashLoaded = false; state.selecting = false; state.selected.clear(); state.shortlist = []; state.shortlistOnly = false;
   lib.resetCards(); hero.setPosters([]);
   hero.mount(signin); document.title = 'Sign in - Clip Vault';
-  if (location.hash) { if (/^#\/playlist\/./.test(location.hash)) pendingDeep = location.hash; history.replaceState(null, '', location.pathname); }
+  if (location.hash) history.replaceState(null, '', location.pathname);
   auth.mountSignin(parts.signin.slot, parts.signin.status, parts.signin.retry).then(() => { if (msg) parts.signin.status.textContent = msg; });
 }
 function refreshChrome() {
@@ -109,11 +108,7 @@ function route() {
     drawer.open(id);
     return;
   }
-  const dl = /^#\/playlist\/(.+)$/.exec(hash);   // share link (D51): opens that playlist after the unlock
-  if (dl) { if (!state.loaded) return; history.replaceState(null, '', '#/playlists/' + dl[1]); route(); return; }
   drawer.close();
-  const plm = /^#\/(playlists|templates)(?:\/.+)?$/.exec(hash);
-  if (plm) { applyView(plm[1]); return; }
   const sm = /^#\/stream\/(.+)$/.exec(hash);
   let v = hash === '#/trash' ? 'trash' : hash === '#/audit' ? 'audit' : hash === '#/users' ? 'users' : 'library';
   if ((v !== 'library' && !isAdmin()) || (v === 'users' && !state.me?.capabilities?.users)) { v = 'library'; }
@@ -123,30 +118,26 @@ function route() {
     state.folder = id; if (changed) { state.cat = 'auto'; state.q = ''; lib.getRefs().q.value = ''; }
     state.libHash = sm ? hash : '#/';
     applyView(v);
-    if (!feedTried && state.loaded && (hash === '' || hash === '#/' || hash === '#') && state.feedDefault && state.feedIds.length) { feedTried = true; location.hash = '#/post/' + encodeURIComponent(state.feedIds[0]); return; }
-    if (state.loaded) feedTried = true;
     if (changed) { if (id != null) { window.scrollTo(0, 0); lib.focusHeading(); } else if (left != null) lib.focusFolder(left); }
     return;
   }
   applyView(v);
 }
-let pendingDeep = '', lastView = null, feedTried = false; // feedTried: Post mode opens by itself at most once per page load
+let lastView = null;
 function applyView(v) {
   const changed = v !== lastView; lastView = v; state.view = v;
   const isBrowse = v === 'library' || v === 'trash';
-  const isPl = v === 'playlists' || v === 'templates';
-  browse.hidden = !isBrowse; auditEl.hidden = v !== 'audit'; usersEl.hidden = v !== 'users'; plEl.hidden = !isPl;
+  browse.hidden = !isBrowse; auditEl.hidden = v !== 'audit'; usersEl.hidden = v !== 'users';
   if (isBrowse) {
     if (state.selecting && changed) { state.selecting = false; state.selected.clear(); emit('selection'); }
     lib.setView(v);
     if (v === 'trash' && !state.trashLoaded) loadTrash();
   } else hero.mount(null);
-  if (isPl) { if (v === 'playlists') import('./plview.js').then(m => { if (state.view === v) m.render(plEl, location.hash); }); else import('./tplview.js').then(m => { if (state.view === v) m.render(plEl); }); }
   if (changed) {
-    const el = isBrowse ? browse : isPl ? plEl : v === 'audit' ? auditEl : usersEl; el.classList.remove('view-in'); void el.offsetWidth; el.classList.add('view-in');
+    const el = isBrowse ? browse : v === 'audit' ? auditEl : usersEl; el.classList.remove('view-in'); void el.offsetWidth; el.classList.add('view-in');
     if (v === 'audit') renderAudit(auditEl); if (v === 'users') renderUsers(usersEl);
-    document.title = ({ library: 'Library', trash: 'Trash', audit: 'Audit log', users: 'People', playlists: 'Playlists', templates: 'Templates' }[v]) + ' - Clip Vault';
-    announce(`${({ library: 'Library', trash: 'Trash', audit: 'Audit log', users: 'People', playlists: 'Playlists', templates: 'Templates' })[v]} view`);
+    document.title = ({ library: 'Library', trash: 'Trash', audit: 'Audit log', users: 'People' }[v]) + ' - Clip Vault';
+    announce(`${({ library: 'Library', trash: 'Trash', audit: 'Audit log', users: 'People' })[v]} view`);
   }
   refreshChrome(); emit('view', v);
 }
@@ -158,7 +149,6 @@ async function enterApp(early) {
   lib.update({ flip: false });
   if (early) await early; else await loadActive();
   if (isAdmin()) loadTrash();
-  if (pendingDeep) { history.replaceState(null, '', pendingDeep); pendingDeep = ''; }
   route();
 }
 

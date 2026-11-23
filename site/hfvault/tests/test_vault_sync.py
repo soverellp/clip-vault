@@ -709,8 +709,3 @@ def test_meta_only_propagates_teaser_flag_and_leaves_old_clips_alone(vs, remote,
     add_meta(repo, "s1", meta)
     assert run(vs, repo, "--meta-only", "--yes", capsys=capsys)[0] == 0
     assert {c["id"]: c for c in remote_index(remote)["clips"]}["c1"]["teaser"] is False
-
-
-def test_fallback_clipped_is_midnight_utc_of_created_and_never_invents(vs):
-    assert vs.fallback_clipped({"created": "2026-11-22"}) == "2026-11-22T00:00:00Z"
-    assert vs.fallback_clipped({"created": "bad"}) is None and vs.fallback_clipped({}) is None
