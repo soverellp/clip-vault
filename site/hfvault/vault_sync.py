@@ -254,6 +254,12 @@ def meta_for(repo, stream):
     return _META_CACHE[key]
 
 
+def fallback_clipped(c):
+    """clipped_at for a clip whose vault_meta.json has none (D55): its date-only `created` as midnight UTC, else None. Fill-only, never overrides."""
+    m = re.fullmatch(r"\d{4}-\d\d-\d\d", str(c.get("created") or ""))
+    return c["created"] + "T00:00:00Z" if m else None
+
+
 def build_local(sid, c, d, vid, repo=None):
     it = {"id": sid, "stream": c["stream"], "title": c["title"], "hook": c.get("hook", ""), "desc": c.get("description", ""),
           "dur": c.get("duration"), "score": c.get("score"), "video": f"clips/{sid}.mp4", "size": vid.stat().st_size}
@@ -262,6 +268,7 @@ def build_local(sid, c, d, vid, repo=None):
     if (d / "post.md").exists(): it["post"] = (d / "post.md").read_text()
     bh.enrich_item(it, vid)
     if repo is not None: bh.apply_meta(it, meta_for(repo, c["stream"]).get(c["id"]))  # NEW entries carry the Library fields
+    if not it.get("clipped_at") and fallback_clipped(c): it["clipped_at"] = fallback_clipped(c)
     return Local(it, vid, poster)
 
 
@@ -415,6 +422,8 @@ def plan_meta(repo, snap, flt=""):
         if meta is None: plan.no_meta += 1; continue
         r = snap.by_id.get(sid)
         if r is None: plan.missing.append(sid); continue
+        meta = dict(meta)
+        if not meta.get("clipped_at") and not r.get("clipped_at") and fallback_clipped(c): meta["clipped_at"] = fallback_clipped(c)  # D55 fill-only
         new, changed = dict(r), []
         for k, v in meta.items():
             if k in bh.META_FILL_ONLY and r.get(k): continue

@@ -1,5 +1,15 @@
 import { state, emit, isAdmin } from './state.js';
 import * as api from './api.js';
+import { postedMap } from './playlists.js';
+import { postedExtra } from './fmt.js';
+
+export function setPlaylistsDoc(doc) { state.playlists = doc; postedExtra.map = postedMap(doc); }
+export async function loadPlaylistData() {
+  const [p, t] = await Promise.all([api.listPlaylists().catch(() => null), api.listTemplates().catch(() => null)]);
+  if (p?.doc) { setPlaylistsDoc(p.doc); state.plExists = p.exists !== false; }
+  if (t?.doc) { state.templates = t.doc; state.tplExists = t.exists !== false; }
+  state.plLoaded = true;
+}
 
 export async function loadActive(boot = false) {
   try {
@@ -10,6 +20,7 @@ export async function loadActive(boot = false) {
     state.folders = Array.isArray(st?.streams) ? st.streams.filter(x => x && typeof x.id === 'string') : [];
     if (Array.isArray(sl?.ids)) state.shortlist = sl.ids;
     state.loaded = true; state.loadError = false;
+    if (!state.plLoaded) await loadPlaylistData();
   } catch (e) { if (e.status === 401) { if (state.me && !boot) emit('unauthorized'); } else { state.loadError = true; state.loaded = true; } }
   emit('clips');
 }
