@@ -40,6 +40,15 @@ FORBIDDEN = re.compile(r"localStorage|sessionStorage|indexedDB|document\.cookie|
 REMEMBER_FILE = "hubchrome.js"
 REMEMBER_KEY_DECL = "const PASS_KEY = 'cv.pass';"
 REMEMBER_ALLOWED = re.compile(r"(?<![\w.])localStorage\.(?:getItem\(PASS_KEY\)|setItem\(PASS_KEY, v\)|removeItem\(PASS_KEY\))")
+# D47: the per-viewer "Post info" switch, viewpref.js only, key 'cv.postmode' only, exactly these two call shapes.
+PREF_FILE = "viewpref.js"
+PREF_KEY_DECL = "const PM_KEY = 'cv.postmode';"
+PREF_FEED_DECL = "const FEED_KEY = 'cv.feed';"
+PREF_PL_DECL = "const PL_KEY = 'cv.pl';"   # D51: playlist add memory (JSON text), key 'cv.pl' only
+PREF_ALLOWED = re.compile(r"(?<![\w.])localStorage\.(?:getItem\((?:PM_KEY|FEED_KEY|PL_KEY)\)|setItem\((?:PM_KEY|FEED_KEY), on \? '1' : '0'\)|setItem\(PL_KEY, s\))")
+
+
+
 
 
 def forbidden_hit(name, src):
@@ -47,6 +56,8 @@ def forbidden_hit(name, src):
     code = strip_comments(src)
     if name == REMEMBER_FILE and code.count(REMEMBER_KEY_DECL) == 1:
         code = REMEMBER_ALLOWED.sub("", code)
+    if name == PREF_FILE and code.count(PREF_KEY_DECL) == 1 and code.count(PREF_FEED_DECL) == 1 and code.count(PREF_PL_DECL) == 1:
+        code = PREF_ALLOWED.sub("", code)
     m = FORBIDDEN.search(code)
     return m.group(0) if m else None
 

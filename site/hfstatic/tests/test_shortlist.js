@@ -46,8 +46,9 @@ const SEED = { version: 1, ids: [{ id: K_A1, at: '2026-11-19T10:00:00Z' }, { id:
 (async () => {
   await Promise.all([server, serverRo, serverSep].map(s => new Promise(r => s.listen(0, '127.0.0.1', r))));
   const at = s => `http://127.0.0.1:${s.address().port}`, base = at(server), BASES = { '': base, '/ro/': at(serverRo), '/sep/': at(serverSep) }, browser = await chromium.launch();
-  async function session(hub, { poll = 0, mode = '', slHub = null } = {}) {
+  async function session(hub, { poll = 0, mode = '', slHub = null, feedOn = false } = {}) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: 'dark', timezoneId: 'UTC' });
+    if (!feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '0'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
     await ctx.route('https://huggingface.co/**', r => (slHub && r.request().url().includes('/clip-vault-shortlist') ? slHub : hub).handle(r));
     await ctx.route(/^https:\/\/([\w-]+\.)+hf\.co\//, r => hub.handle(r));
     const page = await ctx.newPage(), errs = [];
@@ -105,7 +106,7 @@ const SEED = { version: 1, ids: [{ id: K_A1, at: '2026-11-19T10:00:00Z' }, { id:
       // group sharing: the clean version of the moment is the same star
       await page.click(card('a1') + ' .vbtn[data-variant="clean"]');
       ok((await page.getAttribute(card('a1') + ' .shl', 'aria-pressed')) === 'true' && (await page.getAttribute(card('a1'), 'data-id')) === 'a1-c', 'the clean version of a starred moment is starred too (per moment, not per clip)');
-      ok(await page.evaluate(() => { try { return localStorage.length === 0 && sessionStorage.length === 0; } catch { return true; } }), 'nothing about the shortlist is stored in the browser');
+      ok(await page.evaluate(() => { try { return Object.keys(localStorage).filter(k => k !== 'cv.feed').length === 0 && sessionStorage.length === 0; } catch { return true; } }), 'nothing about the shortlist is stored in the browser');
       ok(errs.length === 0 && hub.violations.length === 0, 'no console/CSP errors, no token to a CDN (' + errs.join(';') + ')');
       await ctx.close();
     }
