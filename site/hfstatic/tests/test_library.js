@@ -44,6 +44,7 @@ const server = http.createServer((q, r) => {
   const base = `http://127.0.0.1:${server.address().port}`, browser = await chromium.launch();
   async function session(hub, o = {}) {
     const ctx = await browser.newContext({ viewport: o.viewport || { width: 390, height: 844 }, colorScheme: o.scheme || 'dark', acceptDownloads: true, hasTouch: !!o.touch, timezoneId: 'UTC' });
+    if (!o.feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '0'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
     await ctx.route('https://huggingface.co/**', (r) => hub.handle(r));
     await ctx.route(/^https:\/\/([\w-]+\.)+hf\.co\//, (r) => hub.handle(r));
     const page = await ctx.newPage(), errs = [];
@@ -115,7 +116,7 @@ const server = http.createServer((q, r) => {
       ok(await page.$eval(`${A} .rx`, (e) => { const rgb = (s) => s.match(/[\d.]+/g).slice(0, 3).map(Number); const L = (c) => { const f = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; }; const s = getComputedStyle(e); const a = L(rgb(s.color)), c = L(rgb(s.backgroundColor)); return (Math.max(a, c) + 0.05) / (Math.min(a, c) + 0.05) >= 4.5; }), 'reaction badge contrast is at least 4.5:1 (dark)');
 
       // ---- variant switch
-      ok((await texts(page, `${A} .vbtn`)).join('|').startsWith('With streamer|Clean') && (await page.getAttribute(`${A} .vbtn[data-variant="with-streamer"]`, 'aria-pressed')) === 'false' && (await page.getAttribute(`${A} .vbtn[data-variant="clean"]`, 'aria-pressed')) === 'true', 'pill "With streamer | Clean", Clean selected by default');
+      ok((await texts(page, `${A} .vpill .vbtn`)).join('|').startsWith('With streamer|Clean') && (await page.getAttribute(`${A} .vbtn[data-variant="with-streamer"]`, 'aria-pressed')) === 'false' && (await page.getAttribute(`${A} .vbtn[data-variant="clean"]`, 'aria-pressed')) === 'true', 'pill "With streamer | Clean", Clean selected by default');
       ok((await page.$$eval(`${A} .vbtn`, (e) => e.every((x) => x.offsetHeight >= 44))), 'the pill buttons are at least 44 px tall');
       await page.click(`${A} .card-link`); await page.waitForSelector('dialog.drawer[open].shown'); await page.waitForFunction(() => document.querySelector('dialog.drawer video'), null, { timeout: 8000 }).catch(() => {});
       await sleep(600);
@@ -150,7 +151,7 @@ const server = http.createServer((q, r) => {
       await page.fill('#q', ''); await page.waitForSelector('.folder-grid .folder');
 
       // ---- storage
-      const st = await page.evaluate(() => ({ ls: Object.keys(localStorage), ss: Object.keys(sessionStorage), ck: document.cookie }));
+      const st = await page.evaluate(() => ({ ls: Object.keys(localStorage).filter(k => k !== 'cv.feed'), ss: Object.keys(sessionStorage), ck: document.cookie }));
       ok(st.ls.length === 0 && st.ss.length === 0 && st.ck === '', 'nothing in storage or cookies (the remember box was off)');
       ok((await page.evaluate(() => window.__v)).length === 0 && errs.length === 0, 'no CSP violations and no page errors (' + errs.join(' ') + ')');
       await ctx.close();
@@ -369,6 +370,21 @@ const server = http.createServer((q, r) => {
       });
       ok(r.n === 4 && r.first.join() === '1,2' && r.pick === '1' && r.pickClean === '1', 'moments.js: pairs by group+variant, one clip per slot, default Clean, duplicates stay separate');
       ok(r.rx === 'unrated' && r.rx2 === 'unrated' && r.tier === null && r.cat === true && r.href === '#/stream/~other' && r.cmp === 'AB-', 'moments.js: unrated by default, bad enums ignored, missing kind = game, tier A first');
+      await ctx.close();
+    }
+    {
+      // D49: Post mode (the swipe feed) is ON by default; the "Post mode on start" switch turns it off and the choice is remembered
+      const hub = hubWith(FX.index()); const { ctx, page } = await session(hub, { feedOn: true });
+      await page.waitForSelector('dialog.pm[open]', { timeout: 8000 }).catch(() => {});
+      ok(await page.isVisible('dialog.pm[open]') && /^#\/post\//.test(await page.evaluate(() => location.hash)), 'Post mode default on: the feed opens on first load');
+      await page.click('.pm-close'); await sleep(500);
+      ok(!(await page.isVisible('dialog.pm[open]')) && (await page.getAttribute('#feed-toggle', 'aria-pressed')) === 'true' && await page.isVisible('#feed-toggle'), 'closing the feed shows the library; the Post mode switch is visible and ON');
+      ok(await page.isVisible('#pm-toggle') && await page.isVisible('#post-mode-btn') && await noHScroll(page), 'Post info switch and Post mode button still there, no sideways scroll');
+      await page.click('#feed-toggle'); await sleep(150);
+      ok((await page.getAttribute('#feed-toggle', 'aria-pressed')) === 'false' && (await page.evaluate(() => localStorage.getItem('cv.feed'))) === '0', 'switch OFF is stored');
+      const p2 = await ctx.newPage(); await p2.goto(base); await p2.waitForSelector('#signin:not([hidden]) #pp-input'); await p2.uncheck('#remember-cb'); await p2.fill('#pp-input', PASS); await p2.click('#signin button[type=submit]');
+      await p2.waitForSelector('.folder-grid .folder, li.card .card-link', { timeout: 15000 }); await sleep(800);
+      ok(!(await p2.isVisible('dialog.pm[open]')) && (await p2.getAttribute('#feed-toggle', 'aria-pressed')) === 'false', 'off persists: the next visit opens the normal grid');
       await ctx.close();
     }
   } catch (e) { fail++; console.log('FAIL exception: ' + e.stack); }

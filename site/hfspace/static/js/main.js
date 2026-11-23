@@ -120,12 +120,14 @@ function route() {
     state.folder = id; if (changed) { state.cat = 'auto'; state.q = ''; lib.getRefs().q.value = ''; }
     state.libHash = sm ? hash : '#/';
     applyView(v);
+    if (!feedTried && state.loaded && (hash === '' || hash === '#/' || hash === '#') && state.feedDefault && state.feedIds.length) { feedTried = true; location.hash = '#/post/' + encodeURIComponent(state.feedIds[0]); return; }
+    if (state.loaded) feedTried = true;
     if (changed) { if (id != null) { window.scrollTo(0, 0); lib.focusHeading(); } else if (left != null) lib.focusFolder(left); }
     return;
   }
   applyView(v);
 }
-let lastView = null;
+let lastView = null, feedTried = false; // feedTried: Post mode opens by itself at most once per page load
 function applyView(v) {
   const changed = v !== lastView; lastView = v; state.view = v;
   const isBrowse = v === 'library' || v === 'trash';

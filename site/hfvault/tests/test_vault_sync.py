@@ -695,3 +695,17 @@ def test_a_stale_shortlist_id_does_not_make_the_sync_skip_or_resurrect_a_clip(vs
     remote.files["_config/shortlist.json"] = SHORTLIST_BYTES
     repo = make_repo(tmp_path, [("s", "stale-id", b"B" * 80, False)])
     assert run(vs, repo, "--yes", capsys=capsys)[0] == 0 and any(c["id"] == "stale-id" for c in remote_index(remote)["clips"])
+
+
+def test_meta_only_propagates_teaser_flag_and_leaves_old_clips_alone(vs, remote, tmp_path, capsys):
+    repo = seed_remote(vs, remote, tmp_path, capsys)
+    meta = {"c1": dict(META["c1"], teaser=True), "c2": dict(META["c2"])}   # c2 has no teaser key at all
+    add_meta(repo, "s1", meta)
+    rc, out = run(vs, repo, "--meta-only", "--yes", capsys=capsys)
+    assert rc == 0, out.err
+    e = {c["id"]: c for c in remote_index(remote)["clips"]}
+    assert e["c1"]["teaser"] is True and "teaser" not in e["c2"]
+    meta["c1"]["teaser"] = False                                           # a later change reaches the existing entry
+    add_meta(repo, "s1", meta)
+    assert run(vs, repo, "--meta-only", "--yes", capsys=capsys)[0] == 0
+    assert {c["id"]: c for c in remote_index(remote)["clips"]}["c1"]["teaser"] is False

@@ -15,26 +15,58 @@ export const hasNewFields = c => !!c && !!(c.group || c.variant || c.kind || c.t
 // Better first: tier A before B before C before unrated, then the lower rank number, then the higher score.
 export const rankCmp = (a, b) => (TIER_ORDER[tierOf(a)] ?? 3) - (TIER_ORDER[tierOf(b)] ?? 3) || rankNum(a) - rankNum(b) || (Number(b.score) || 0) - (Number(a.score) || 0);
 
-// -> [{ key, group, stream, clips:[...], byVariant:{ 'with-streamer': clip, clean: clip, 'face-top': clip } }] in the order of the first clip of each moment.
-// Only clips that carry a known variant and a group are merged, and only one clip per variant slot; anything else stays a moment of its own.
+// Teaser: a clip may be the same cut with a short teaser in front (boolean `teaser`, default false). Anything but `true` means no teaser.
+export const teaserOf = c => !!c && c.teaser === true;
+export const TEASERS = [[false, 'Without teaser'], [true, 'With teaser']];
+const tkey = (v, t) => `${v}|${t ? 1 : 0}`;
+const ORDER = ['clean', 'with-streamer', 'face-top'];   // fallback order of the version when the wanted one does not exist
+
+// -> [{ key, group, stream, clips:[...], byVariant:{ v: clip }, byCombo:{ 'v|0'|'v|1': clip }, hasTeaser }] in the order of the first clip of each moment.
+// Only clips that carry a known variant and a group are merged, and only one clip per (variant, teaser) slot; anything else stays a moment of its own.
+// byVariant[v] is the clip of that version WITHOUT teaser (the teaser one when only that exists), so old code and old data behave as before.
 export function buildMoments(clips) {
   const out = [], byKey = new Map();
   for (const c of clips) {
-    const slot = c.group ? variantOf(c) : null;
-    const k = slot ? `${c.stream || ''}|${c.group}` : null;
+    const v = c.group ? variantOf(c) : null, slot = v ? tkey(v, teaserOf(c)) : null;
+    const k = v ? `${c.stream || ''}|${c.group}` : null;
     const m = k ? byKey.get(k) : null;
-    if (m && !m.byVariant[slot]) { m.byVariant[slot] = c; m.clips.push(c); continue; }
-    const n = { key: k && !m ? k : 'c:' + c.id, group: slot ? c.group : null, stream: c.stream || '', clips: [c], byVariant: slot ? { [slot]: c } : {} };
+    if (m && !m.byCombo[slot]) { addTo(m, v, c); continue; }
+    const n = { key: k && !m ? k : 'c:' + c.id, group: v ? c.group : null, stream: c.stream || '', clips: [c], byVariant: {}, byCombo: {}, hasTeaser: false };
+    if (v) addTo(n, v, c, true);
     if (k && !m) byKey.set(k, n);
     out.push(n);
   }
   return out;
 }
-export const hasPair = m => Object.keys(m.byVariant).length > 1;
-// The default variant is "Clean" when the moment has it, otherwise With streamer, otherwise whatever it has.
-export function pick(m, sel) {
-  return m.byVariant[sel] || m.byVariant.clean || m.byVariant['with-streamer'] || m.byVariant['face-top'] || m.clips[0];
+function addTo(m, v, c, first) {
+  const t = teaserOf(c);
+  m.byCombo[tkey(v, t)] = c; if (!first) m.clips.push(c);
+  if (t) m.hasTeaser = true;
+  if (!m.byVariant[v] || (teaserOf(m.byVariant[v]) && !t)) m.byVariant[v] = c;
 }
+export const hasPair = m => Object.keys(m.byVariant).length > 1;
+export const hasTeaserPair = m => !!m.hasTeaser;
+// Selection: a plain string is the old form (version only). Object form: { variant, teaser } where teaser null/undefined = the default.
+// The default is Clean + With teaser; a moment with no teaser clip is Clean without teaser, as before.
+const norm = sel => (sel && typeof sel === 'object' ? { variant: sel.variant || 'clean', teaser: typeof sel.teaser === 'boolean' ? sel.teaser : null } : { variant: sel || 'clean', teaser: null });
+// The clip for the wanted (variant, teaser): keep the teaser choice and fall back the version (wanted, clean, with-streamer, face-top);
+// if no version has that teaser state, drop the teaser. Always returns a clip of the moment.
+export function resolve(m, sel) {
+  const s = norm(sel), want = s.teaser == null ? !!m.hasTeaser : s.teaser;
+  const vs = [s.variant, ...ORDER.filter(x => x !== s.variant)];
+  for (const t of (want ? [true, false] : [false, true])) for (const v of vs) { const c = m.byCombo?.[tkey(v, t)]; if (c) return c; }
+  return m.clips[0];
+}
+export const pick = resolve;
+// The selection object that stands for the clip c of moment m (what the buttons show).
+export const selOfClip = c => ({ variant: variantOf(c) || 'clean', teaser: teaserOf(c) });
+// Button state: does the combination exist when one axis changes and the other stays as it is now (cur = the clip on screen)?
+export function comboExists(m, cur, axis, val) {
+  const v = axis === 'variant' ? val : variantOf(cur), t = axis === 'teaser' ? val : teaserOf(cur);
+  return !!m.byCombo?.[tkey(v, t)];
+}
+// The new selection when a button is pressed: that axis is set, the other kept (falls back in resolve()).
+export const selWith = (cur, axis, val) => (axis === 'variant' ? { variant: val, teaser: teaserOf(cur) } : { variant: variantOf(cur) || 'clean', teaser: val });
 // What a card shows: the selected variant's own fields, filled from the other variant when they are empty.
 export function infoOf(m, rep) {
   const o = m.clips.filter(c => c !== rep);

@@ -52,8 +52,9 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
 (async () => {
   await Promise.all([server, serverRo, serverSep].map(s => new Promise(r => s.listen(0, '127.0.0.1', r))));
   const at = s => `http://127.0.0.1:${s.address().port}`, BASES = { '': at(server), '/ro/': at(serverRo) }, browser = await chromium.launch();
-  async function session(hub, { mode = '', width = 390, blockStorage = false } = {}) {
+  async function session(hub, { mode = '', width = 390, blockStorage = false, feedOn = false } = {}) {
     const ctx = await browser.newContext({ viewport: { width, height: 844 }, colorScheme: 'dark', timezoneId: 'UTC', acceptDownloads: true });
+    if (!feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '0'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
     await ctx.route('https://huggingface.co/**', r => hub.handle(r));
     await ctx.route(/^https:\/\/([\w-]+\.)+hf\.co\//, r => hub.handle(r));
     const page = await ctx.newPage(), errs = [];
@@ -271,6 +272,7 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
     }
     {
       const hub = newHub(); const { ctx, page } = await session(hub, { blockStorage: true });
+      await page.waitForSelector('dialog.pm[open]', { timeout: 6000 }).then(() => page.click('.pm-close')).catch(() => {}); await sleep(400); // storage blocked: Post mode opens (default ON), close it
       ok((await page.getAttribute('#pm-toggle', 'aria-pressed')) === 'true', 'storage blocked: Post info still defaults to ON and the page works');
       await page.click('#pm-toggle'); await sleep(150); ok((await page.getAttribute('#pm-toggle', 'aria-pressed')) === 'false', 'storage blocked: the switch still toggles for this visit');
       await ctx.close();
@@ -288,7 +290,7 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
     // ================= static checks
     {
       const src = fs.readFileSync(path.join(DIST, 'js', 'viewpref.js'), 'utf8'), idx = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');
-      ok(/Content-Security-Policy/.test(idx) && !/unsafe-inline|unsafe-eval/.test(idx) && (src.match(/localStorage/g) || []).length === 2, 'CSP unchanged (no unsafe-*); localStorage only in viewpref.js, two calls');
+      ok(/Content-Security-Policy/.test(idx) && !/unsafe-inline|unsafe-eval/.test(idx) && (src.match(/localStorage/g) || []).length === 4, 'CSP unchanged (no unsafe-*); localStorage only in viewpref.js, four calls (Post info + Post mode keys)');
       const bad = fs.readdirSync(path.join(DIST, 'js')).filter(f => f !== 'viewpref.js' && f !== 'hubchrome.js' && /localStorage|innerHTML/.test(fs.readFileSync(path.join(DIST, 'js', f), 'utf8').replace(/\/\/.*$/gm, '')));
       ok(bad.length === 0, 'no other file uses localStorage or innerHTML (' + bad.join(',') + ')');
     }
