@@ -7,7 +7,7 @@ import { toast } from './toast.js';
 import { liveKeys } from './shortlist.js';
 import { newId, repClip, planAdd, undoOps, unionCombos, comboLabel, liveTargets, targetsText, versionsText, capQueue, streamKeys, applyPlaylistOp } from './playlists.js';
 import { readPlPref, writePlPref } from './viewpref.js';
-import { ensureCss, canEditPl, RO_HINT, plAct, newItemPost } from './plui.js';
+import { ensureCss, canEditPl, RO_HINT, roMsg, plAct, newItemPost } from './plui.js';
 
 const TOAST_MS = 6000;
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -33,7 +33,7 @@ export function plToast(text, actions = []) {
 const postsFor = (p, fresh) => { const o = {}; let n = p ? p.items.length : 0; for (const k of fresh) { n++; const c = repClip(k, state.clips); if (c) o[k] = newItemPost(p, c, n); } return o; };
 // opts.replace = { added, created } of the save being changed: it is undone and the new choice applied in the SAME commit.
 export async function saveAdd({ keys, targets, excl, replace = null, opener = null }) {
-  if (!canEditPl()) { toast(RO_HINT + '.'); return null; }
+  if (!canEditPl()) { toast(roMsg()); return null; }
   const now = new Date().toISOString(), keep = new Set(targets.map(t => t.id));
   const undo = replace ? undoOps(replace.added, (replace.created || []).filter(id => !keep.has(id))) : [];
   let base = state.playlists; for (const o of undo) { try { base = applyPlaylistOp(base, o, now).doc; } catch { /* the server decides */ } }
@@ -106,7 +106,7 @@ export function openAddToPlaylist(keys, label, opener, { initial = null, replace
     ...combos.map(k => { const b = h('button', { type: 'button', class: 'pl-vchip', 'data-v': k, 'aria-pressed': String(!excl.has(k)), text: comboLabel(k, combos.some(x => x.endsWith('|1'))) });
       b.addEventListener('click', () => { const on_ = excl.has(k); if (!on_ && combos.filter(x => !excl.has(x)).length <= 1) { err.textContent = 'Keep at least one version.'; return; } err.textContent = ''; if (on_) excl.delete(k); else excl.add(k); b.setAttribute('aria-pressed', String(on_)); });
       return b; })) : null;
-  if (!canEditPl()) m.body.append(h('p', { class: 'pl-ro', text: RO_HINT + '.' }));
+  if (!canEditPl()) m.body.append(h('p', { class: 'pl-ro', text: roMsg() }));
   else m.body.append(createRow, list, chips, err);
   paint();
   m.foot.append(btn('Open playlists', { kind: 'ghost', on: () => { m.close(true); location.hash = '#/playlists'; } }), btn('Cancel', { on: () => m.close(false) }), saveB);

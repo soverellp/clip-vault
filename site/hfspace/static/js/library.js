@@ -86,15 +86,15 @@ function makeCard(m, view) {
     h('div', { class: 'meta' }, h('span', { class: 'pill stream' }), h('span', { class: 'po-badges', hidden: true }), h('span', { class: 'size' }), h('span', { class: 'when' })));
   inner.append(poster, body);
   link.append(inner);
-  li.append(link);
+  const top = h('div', { class: 'card-top' }); top.append(link); li.append(top);
   const acc = accentFor(c.id); if (acc) li.style.setProperty('--ac-rgb', rgbVar(acc));
   const chk = h('button', { type: 'button', class: 'check', role: 'checkbox', 'aria-checked': 'false', 'aria-label': 'Select clip', on: { click: e => { e.preventDefault(); toggleSel(li); } } }, icon('check'));
-  li.append(chk);
-  if (!trash) li.append(h('button', { type: 'button', class: 'shl', 'aria-pressed': 'false', hidden: true, on: { click: e => { e.preventDefault(); e.stopPropagation(); toggleShortlist(li._c || c); } } }, icon('star')));
-  if (!trash) li.append(h('button', { type: 'button', class: 'card-more', 'aria-haspopup': 'dialog', on: { click: e => { e.preventDefault(); e.stopPropagation(); openCardSheet(li._c || c, { opener: e.currentTarget }); } } }, icon('dots')));
-  li.append(h('div', { class: 'tpill', role: 'group', 'aria-label': 'Teaser', hidden: true }, ...TEASERS.map(([t, label]) =>
+  top.append(chk);
+  if (!trash) top.append(h('button', { type: 'button', class: 'shl', 'aria-pressed': 'false', hidden: true, on: { click: e => { e.preventDefault(); e.stopPropagation(); toggleShortlist(li._c || c); } } }, icon('star')));
+  if (!trash) top.append(h('button', { type: 'button', class: 'card-more', 'aria-haspopup': 'dialog', on: { click: e => { e.preventDefault(); e.stopPropagation(); openCardSheet(li._c || c, { opener: e.currentTarget }); } } }, icon('dots')));
+  top.append(h('div', { class: 'tpill', role: 'group', 'aria-label': 'Teaser', hidden: true }, ...TEASERS.map(([t, label]) =>
     h('button', { type: 'button', class: 'vbtn', 'data-teaser': t ? '1' : '0', 'aria-pressed': 'false', text: label, on: { click: e => { e.preventDefault(); e.stopPropagation(); setChoice(li, 'teaser', t); } } }))));
-  li.append(h('div', { class: 'vpill', role: 'group', 'aria-label': 'Version', hidden: true }, ...VARIANTS.map(([v, label]) =>
+  top.append(h('div', { class: 'vpill', role: 'group', 'aria-label': 'Version', hidden: true }, ...VARIANTS.map(([v, label]) =>
     h('button', { type: 'button', class: 'vbtn', 'data-variant': v, 'aria-pressed': 'false', text: label, on: { click: e => { e.preventDefault(); e.stopPropagation(); setChoice(li, 'variant', v); } } }))));
   if (trash) {
     li.append(h('div', { class: 'card-actions' }, h('p', { class: 'trashline', 'data-trashline': '', 'data-trashed': c.trashed_at || '', 'data-purge': c.purge_after || '' }),

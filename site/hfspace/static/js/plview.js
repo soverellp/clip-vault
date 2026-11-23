@@ -10,7 +10,7 @@ import { liveKeys } from './shortlist.js';
 import { PL_PLATFORMS, PL_LABEL, PL_STATUS, normTags, repClip, isStale, liveItems, progress, suggestStatus, itemDone, captionText, playlistText, playlistCsv, newId, itemModes, pickMode, comboLabel, playlistLinkPath, shareText } from './playlists.js';
 import { readPlPref, writePlPref } from './viewpref.js';
 import { validatePost, applyTemplateToItems, renderPost } from './templates.js';
-import { ensureCss, canEditPl, RO_HINT, plAct, streamOf, effectiveTemplates, templateById, openMarkPosted, addShortlistedToPlaylist, newItemPost } from './plui.js';
+import { ensureCss, canEditPl, RO_HINT, roMsg, plAct, streamOf, effectiveTemplates, templateById, openMarkPosted, addShortlistedToPlaylist, newItemPost } from './plui.js';
 
 let focusAfter = null, dragKey = null, lastEl = null, rename = null;   // rename = { id, text } while a title is being edited inline
 const modeMem = new Map();                                              // moment key -> chosen version combo (this visit); the last choice is also remembered per viewer
@@ -94,7 +94,7 @@ function renderList(el) {
         h('div', { class: 'pl-meta' }, platChips(p), h('span', { class: 'muted', text: `${g.total} moment${g.total === 1 ? '' : 's'}` + (stale ? `, ${stale} no longer in the library` : '') })), progressBar(p)),
       h('div', { class: 'pl-card-act' }, share, dup, edit, del)));
   }
-  put(el, head, ro ? h('p', { class: 'pl-ro', text: RO_HINT + '.' }) : null, pls.length ? list : h('div', { class: 'empty pl-empty' }, h('p', { text: 'No playlists yet.' }), h('p', { class: 'muted', text: 'Create one here, or tap "Add to playlist" on any clip.' })));
+  put(el, head, ro ? h('p', { class: 'pl-ro', text: roMsg() }) : null, pls.length ? list : h('div', { class: 'empty pl-empty' }, h('p', { text: 'No playlists yet.' }), h('p', { class: 'muted', text: 'Create one here, or tap "Add to playlist" on any clip.' })));
 }
 
 // ---- item editor (a dialog, so the live refresh never replaces what is being typed)
@@ -215,7 +215,7 @@ function renderOne(el, id) {
   const sugEl = sug && p.status !== 'posted' ? h('div', { class: 'pl-suggest', role: 'status' }, h('span', { text: 'Every moment is posted.' }), btn('Mark playlist as posted', { cls: 'sm pl-setposted', kind: 'primary', on: () => plAct({ type: 'update', id: p.id, patch: { status: 'posted' } }, 'Playlist marked posted'), disabled: ro })) : null;
   const ol = h('ol', { class: 'pl-items', 'aria-label': 'Items' });
   p.items.forEach((it, i) => ol.append(itemRow(p, it, i, p.items.length, ro)));
-  put(el, head, ro ? h('p', { class: 'pl-ro', text: RO_HINT + '.' }) : null, sugEl, p.items.length ? ol : h('div', { class: 'empty pl-empty' }, h('p', { text: 'This playlist is empty.' }), h('p', { class: 'muted', text: 'Add moments with "Add to playlist" on any clip, or "Add shortlisted".' })));
+  put(el, head, ro ? h('p', { class: 'pl-ro', text: roMsg() }) : null, sugEl, p.items.length ? ol : h('div', { class: 'empty pl-empty' }, h('p', { text: 'This playlist is empty.' }), h('p', { class: 'muted', text: 'Add moments with "Add to playlist" on any clip, or "Add shortlisted".' })));
 }
 
 export function render(el, hash) {

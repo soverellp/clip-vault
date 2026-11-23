@@ -138,11 +138,11 @@
 .grid.moments .card.lead .vpill{left:calc(12px + var(--pw) + 14px)}
 .vpill[hidden]{display:none}
 /* the teaser switch (left group): same glass control, stacked above the version switch; shown only on moments with a teaser clip */
-.tpill{position:absolute;left:calc(12px + var(--pw) + 14px);right:12px;bottom:62px;z-index:3;display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:3px;border-radius:24px;border:1px solid var(--edge);background:rgba(0,0,0,.28)}
+.tpill{position:absolute;left:calc(12px + var(--pw) + 14px);right:12px;bottom:68px;z-index:3;display:grid;grid-template-columns:1fr 1fr;gap:2px;padding:3px;border-radius:24px;border:1px solid var(--edge);background:rgba(0,0,0,.28)}
 :root[data-theme="light"] .tpill{background:rgba(26,21,15,.07)}
 @media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .tpill{background:rgba(26,21,15,.07)}}
 .tpill[hidden]{display:none}
-.grid.moments .card.has-teaser .card-body{padding-bottom:112px}
+.grid.moments .card.has-teaser .card-body{padding-bottom:118px}
 .grid.moments.selecting .tpill{display:none}
 .vpill.v3{grid-template-columns:1.3fr .8fr 1.05fr}
 .vbtn[hidden]{display:none}
@@ -154,7 +154,13 @@
 .vbtn:not([aria-pressed="true"]):hover{background:var(--panel-2)}
 .grid.moments.selecting .vpill{display:none}
 @media (max-width:420px){.grid.moments{--pw:100px}.grid.moments .card.lead{--pw:128px}.vbtn{padding:0 6px;font-size:.8rem}.vpill.v3 .vbtn{padding:0 3px;font-size:.72rem}}
-.grid.moments .card-link,.grid.moments .card-in{height:100%}
+/* each card is a clean vertical stack: link (poster + title + version toggles) then the Post info block. height:100% on the link made it as tall as
+   the whole card INCLUDING the Post info block, so the block overlapped the card below and left a big gap; flex lets the link take only the spare room. */
+.card-top{position:relative;display:flex;flex-direction:column;flex:1 1 auto;min-width:0}   /* the overlays (check, star, more, version toggles) are positioned against THIS box, not the whole card with the Post info block */
+.grid.moments .card{display:flex;flex-direction:column;min-width:0}
+.grid.moments .card-link{display:flex;flex-direction:column;flex:1 1 auto;min-width:0}
+.grid.moments .card-in{flex:1 1 auto;min-width:0}
+.grid.moments .pinfo{flex:none;position:relative}
 @media (min-width:760px){.grid.moments .card.lead .card-in{min-height:260px}.grid.moments .card.lead{--pw:164px}}
 
 @media (prefers-reduced-motion:reduce){.cat,.f-thumb,.f-thumb img,.view.view-in{transition:none!important;animation:none!important}}

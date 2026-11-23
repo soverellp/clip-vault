@@ -4,7 +4,7 @@ import { h, btn, icon } from './dom.js';
 import { createModal } from './a11y.js';
 import { newId, normTags } from './playlists.js';
 import { TPL_PLATFORMS, TPL_LABEL, VARS, LIMIT_KEYS, PRESETS, renderPost, validatePost, sampleClip, sampleStream } from './templates.js';
-import { ensureCss, canEditPl, RO_HINT, tplAct, effectiveTemplates } from './plui.js';
+import { ensureCss, canEditPl, RO_HINT, roMsg, tplAct, effectiveTemplates } from './plui.js';
 import { confirmDialog } from './plview.js';
 
 const put = (el, ...kids) => el.replaceChildren(...kids.filter(Boolean));
@@ -67,5 +67,5 @@ export function render(el) {
         btn('', { ic: 'copy', kind: 'ghost', cls: 'icon tpl-dup', aria: `Duplicate ${t.name}`, disabled: ro, on: e => openTemplateForm({ ...t, id: newId('tpl'), name: t.name + ' copy' }, e.currentTarget) }),
         btn('', { ic: 'trash', kind: 'ghost', cls: 'icon danger-ghost', aria: `Delete ${t.name}`, disabled: ro, on: async () => { if (await confirmDialog({ title: 'Delete this template?', text: `"${t.name}" will be removed for everyone. Posts already filled in playlists stay as they are.` })) await tplAct({ type: 'delete', id: t.id }, 'Template deleted'); } }))));
   }
-  put(el, head, ro ? h('p', { class: 'pl-ro', text: RO_HINT + '.' }) : null, tpls.length ? list : h('div', { class: 'empty pl-empty' }, h('p', { text: 'No templates.' })));
+  put(el, head, ro ? h('p', { class: 'pl-ro', text: roMsg() }) : null, tpls.length ? list : h('div', { class: 'empty pl-empty' }, h('p', { text: 'No templates.' })));
 }

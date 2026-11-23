@@ -152,18 +152,18 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       const T = `[layout ${width} post-info ${pinfoOn ? 'on' : 'off'}] `;
       const { ctx, page } = await session(newHub(), { width }); await openFolder(page, S1);
       if ((await page.getAttribute('#pm-toggle', 'aria-pressed') === 'true') !== pinfoOn) { await page.click('#pm-toggle'); await sleep(300); }
-      await page.waitForSelector(pinfoOn ? 'li.card .pinfo' : 'li.card .card-in'); await sleep(900);   // card entrance animation
+      await page.waitForSelector(pinfoOn ? 'li.card .pinfo' : 'li.card:not(.sk) .card-in', { timeout: 15000 }).catch(async e => { await shot(page, 'layout_debug.png'); console.log('DBG', JSON.stringify(await page.evaluate(() => { const c = document.querySelector('li.card .card-in'); const r = c.getBoundingClientRect(); const s = getComputedStyle(c); return [r.width, r.height, s.display, s.visibility, getComputedStyle(c.closest('li')).display, c.closest('li').className]; }))); throw e; }); await sleep(900);   // card entrance animation
       const r = await page.evaluate(() => {
         const box = e => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; };
         const hit = (a, b) => a.w > 0 && a.h > 0 && b.w > 0 && b.h > 0 && a.x < b.r - 1 && b.x < a.r - 1 && a.y < b.b - 1 && b.y < a.b - 1;
-        const cards = [...document.querySelectorAll('ul.grid.moments li.card')].filter(c => c.offsetParent), bad = [], gaps = [];
+        const cards = [...document.querySelectorAll('ul.grid.moments li.card:not(.sk)')].filter(c => c.offsetParent), bad = [], gaps = [];
         for (const c of cards) {
           const parts = ['.poster', '.title', '.tpill', '.vpill', '.pinfo .pi-title', '.pinfo .pi-cap', '.pinfo .pi-tags', '.pinfo .pi-actions', '.pinfo'].map(q => [q, c.querySelector(q)]).filter(([, e]) => e && e.offsetParent);
           const rows = [...c.querySelectorAll('.pinfo > *')].filter(e => e.offsetParent).map(e => ['pinfo>' + e.className, e]);
           const all = parts.filter(([q]) => q !== '.pinfo').concat(rows);
           for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
             const [qa, ea] = all[i], [qb, eb] = all[j]; if (ea.contains(eb) || eb.contains(ea)) continue;
-            if (hit(box(ea), box(eb))) bad.push(qa + ' x ' + qb);
+            if (hit(box(ea), box(eb))) bad.push(qa + ' x ' + qb + ' ' + [ea, eb, c.querySelector('.card-in')].map(e => { const b = box(e); return [b.y, b.h].map(Math.round).join('+'); }).join(' | '));
           }
           const cb = box(c), ink = [...c.querySelectorAll('.card-in, .pinfo')].map(box);
           if (ink.some(k => k.b > cb.b + 1)) bad.push('content sticks out of the card');

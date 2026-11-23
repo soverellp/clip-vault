@@ -20,14 +20,17 @@ export function ensureCss() {
 }
 export const canEditPl = () => state.me?.capabilities?.shortlist === true;
 export const RO_HINT = 'Playlists and templates are read-only on this site';
+// Plain-words reason (static site only: state.me.shortlist_state); the first sentence stays the same for everyone.
+const RO_WHY = { missing: 'Saving is not switched on for this site yet. Ask the site owner to republish it with saving turned on.', undecryptable: 'The saving key on this site could not be read. Ask the site owner to republish it.', rejected: 'Hugging Face refused the saving key. Ask the site owner to renew it, then reload this page.' };
+export const roMsg = () => RO_HINT + '.' + (RO_WHY[state.me?.shortlist_state] ? ' ' + RO_WHY[state.me.shortlist_state] : '');
 export const streamOf = c => state.folders.find(f => f.id === c?.stream) || null;
 export const effectiveTemplates = () => (state.tplExists === false && !state.templates.templates.length ? PRESETS : state.templates.templates);
 export const templateById = id => effectiveTemplates().find(t => t.id === id) || null;
-const errText = e => (e?.status === 409 ? 'Someone else saved at the same time. Try again.' : e?.status === 404 ? (e.message || 'That item was changed or removed by someone else.') : e?.status === 403 ? RO_HINT + '.' : e?.status === 502 ? 'The saved file could not be read, so nothing was changed.' : 'Could not save. Check the connection and try again.');
+const errText = e => (e?.status === 409 ? 'Someone else saved at the same time. Try again.' : e?.status === 404 ? (e.message || 'That item was changed or removed by someone else.') : e?.status === 403 ? RO_HINT + '. ' + RO_WHY.rejected : e?.status === 502 ? 'The saved file could not be read, so nothing was changed.' : 'Could not save. Check the connection and try again.');
 
 // One change to playlists.json (read at the parent revision, committed with an audit line: see hubapi.js). -> { ok, doc } or null (a toast says why)
 export async function plAct(op, okMsg) {
-  if (!canEditPl()) { toast(RO_HINT + '.'); return null; }
+  if (!canEditPl()) { toast(roMsg()); return null; }
   try {
     const r = await api.updatePlaylists(op);
     if (r?.doc) { setPlaylistsDoc(r.doc); state.plExists = true; }
@@ -36,7 +39,7 @@ export async function plAct(op, okMsg) {
   } catch (e) { toast(errText(e), { kind: 'error' }); return null; }
 }
 export async function tplAct(op, okMsg) {
-  if (!canEditPl()) { toast(RO_HINT + '.'); return null; }
+  if (!canEditPl()) { toast(roMsg()); return null; }
   try {
     if (state.tplExists === false && op.type !== 'seed') { const s = await api.updateTemplates({ type: 'seed', templates: PRESETS }); if (s?.doc) state.templates = s.doc; state.tplExists = true; }
     const r = await api.updateTemplates(op);
@@ -95,7 +98,7 @@ export function openMarkPosted(c, opener, { only } = {}) {
   ensureCss();
   const key = momentKey(c), pls = only ? [only] : playlistsOf(state.playlists, key);
   const m = createModal({ title: 'Mark posted', desc: titleOf(c), cls: 'pl-modal' });
-  if (!canEditPl()) { m.body.append(h('p', { class: 'pl-ro', text: RO_HINT + '.' })); m.foot.append(btn('Close', { on: () => m.close(false) })); m.open(); return m; }
+  if (!canEditPl()) { m.body.append(h('p', { class: 'pl-ro', text: roMsg() })); m.foot.append(btn('Close', { on: () => m.close(false) })); m.open(); return m; }
   if (!pls.length) {
     m.body.append(h('p', { text: 'Posting is tracked inside a playlist. Add this moment to a playlist first.' }));
     m.foot.append(btn('Add to playlist', { kind: 'primary', on: () => { m.close(true); setTimeout(() => openAddToPlaylist([key], titleOf(c), opener), 0); } }), btn('Close', { on: () => m.close(false) }));
