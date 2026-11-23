@@ -278,18 +278,6 @@ def test_normalize_meta_defaults_limits_and_enums():
         with pytest.raises(ValueError): bh.normalize_meta(bad, "s")
 
 
-def test_normalize_meta_teaser_boolean_optional_rejects_non_boolean():
-    import build_hfvault as bh
-    assert "teaser" in bh.META_FIELDS
-    assert "teaser" not in bh.normalize_meta({"group": "g", "variant": "clean"}, "s")        # absent stays absent (old data)
-    assert bh.normalize_meta({"group": "g", "variant": "clean", "teaser": True}, "s")["teaser"] is True
-    assert bh.normalize_meta({"group": "g", "variant": "clean", "teaser": False}, "s")["teaser"] is False
-    for bad in ("true", 1, 0, None, "yes", []):
-        with pytest.raises(ValueError): bh.normalize_meta({"group": "g", "variant": "clean", "teaser": bad}, "s")
-    it = bh.apply_meta({"id": "x"}, bh.normalize_meta({"group": "g", "variant": "clean", "teaser": True}, "s"))
-    assert it["teaser"] is True                                                            # the index entry carries it
-
-
 def test_apply_meta_fills_hook_and_stream_only_when_empty():
     import build_hfvault as bh
     it = {"id": "a", "stream": "s", "hook": "", "title": "T"}

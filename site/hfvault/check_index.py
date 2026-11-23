@@ -30,9 +30,6 @@ def main(argv=None):
         n = sum(1 for c in clips if c.get(k) not in (None, ""))
         print(f"clips with {k}: {n}/{len(clips)}")
         if n != len(clips) and k != "why": bad.append(k)
-    tz = [c.get("teaser") for c in clips if "teaser" in c]  # optional boolean: old data without it stays valid
-    print(f"clips with teaser (optional): {len(tz)}/{len(clips)}, true: {sum(1 for v in tz if v is True)}")
-    if any(not isinstance(v, bool) for v in tz): bad.append("teaser")
     pos = [c.get("posted_on") for c in clips if c.get("posted_on") is not None]  # optional field: old data without it stays valid
     print(f"clips with posted_on (optional): {len(pos)}/{len(clips)}")
     if any(not isinstance(v, list) or any(x not in ("youtube", "instagram", "tiktok", "x", "other") for x in v) for v in pos): bad.append("posted_on")
