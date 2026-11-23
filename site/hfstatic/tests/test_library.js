@@ -115,7 +115,7 @@ const server = http.createServer((q, r) => {
       ok(await page.$eval(`${A} .rx`, (e) => { const rgb = (s) => s.match(/[\d.]+/g).slice(0, 3).map(Number); const L = (c) => { const f = c.map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * f[0] + 0.7152 * f[1] + 0.0722 * f[2]; }; const s = getComputedStyle(e); const a = L(rgb(s.color)), c = L(rgb(s.backgroundColor)); return (Math.max(a, c) + 0.05) / (Math.min(a, c) + 0.05) >= 4.5; }), 'reaction badge contrast is at least 4.5:1 (dark)');
 
       // ---- variant switch
-      ok((await texts(page, `${A} .vbtn`)).join('|').startsWith('With streamer|Clean') && (await page.getAttribute(`${A} .vbtn[data-variant="with-streamer"]`, 'aria-pressed')) === 'false' && (await page.getAttribute(`${A} .vbtn[data-variant="clean"]`, 'aria-pressed')) === 'true', 'pill "With streamer | Clean", Clean selected by default');
+      ok((await texts(page, `${A} .vpill .vbtn`)).join('|').startsWith('With streamer|Clean') && (await page.getAttribute(`${A} .vbtn[data-variant="with-streamer"]`, 'aria-pressed')) === 'false' && (await page.getAttribute(`${A} .vbtn[data-variant="clean"]`, 'aria-pressed')) === 'true', 'pill "With streamer | Clean", Clean selected by default');
       ok((await page.$$eval(`${A} .vbtn`, (e) => e.every((x) => x.offsetHeight >= 44))), 'the pill buttons are at least 44 px tall');
       await page.click(`${A} .card-link`); await page.waitForSelector('dialog.drawer[open].shown'); await page.waitForFunction(() => document.querySelector('dialog.drawer video'), null, { timeout: 8000 }).catch(() => {});
       await sleep(600);

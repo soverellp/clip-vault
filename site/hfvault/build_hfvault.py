@@ -159,7 +159,7 @@ VARIANTS = ("with-streamer", "with-girl", "clean", "face-top")
 TIERS = ("A", "B", "C")
 KINDS = ("reaction", "game")
 # every contract field a clip entry may carry (all optional; old clients ignore them)
-META_FIELDS = ("stream", "group", "variant", "reaction", "reaction_note", "kind", "tier", "rank", "why", "hook", "clipped_at", "lang", "posted_on")
+META_FIELDS = ("stream", "group", "variant", "teaser", "reaction", "reaction_note", "kind", "tier", "rank", "why", "hook", "clipped_at", "lang", "posted_on")
 # edited in the site by admins (D39): vault_sync only FILLS these when the remote value is empty, never overwrites
 META_FILL_ONLY = ("stream", "hook", "posted_on")
 META_LIMITS = {"reaction_note": 80, "why": 110}
@@ -181,6 +181,9 @@ def normalize_meta(raw, stream=None):
     if v is not None:
         if v not in VARIANTS: raise ValueError(f"variant {v!r} not in {VARIANTS}")
         m["variant"] = v
+    if "teaser" in raw:  # optional boolean (default false = no teaser); absent = old data, nothing is written
+        if not isinstance(raw["teaser"], bool): raise ValueError(f"teaser {raw['teaser']!r} must be true or false")
+        m["teaser"] = raw["teaser"]
     r = raw.get("reaction", "unrated")
     if r not in REACTIONS: raise ValueError(f"reaction {r!r} not in {REACTIONS}")
     m["reaction"] = r

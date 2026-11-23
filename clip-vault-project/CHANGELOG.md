@@ -2,6 +2,10 @@
 
 > **TL;DR** All dates 2026-11-17, times UTC from `git log` for the older entries. Hashes verified with `git log` in the clipper repo. Add new entries at the TOP. The newest entry below has no hashes: it was written without git access and nothing was committed by the author.
 
+## 2026-11-23 (D47: teaser x version switch)
+- NEW optional per-clip boolean `teaser` (default false): `build_hfvault.py` (META_FIELDS, validation), `vault_sync.py --meta-only` (via META_FIELDS), `check_index.py`. UI: `moments.js` (`byCombo`, `resolve`, `comboExists`, `selWith`), `library.js` (left teaser pill, `setChoice`), `css/moments.css` (`.tpill`). Default Clean + With teaser; no teaser clips = old behaviour.
+- Tests: `site/hfstatic/tests/test_variants_teaser_logic.mjs` (12), `test_teaser_ui.js` (14, Playwright 390 px), hfvault pytest +2. NOT rebuilt into `dist/` (needs the keys): run the build under the Bitwarden wrapper.
+
 ## 2026-11-19 (live refresh: the static site updates without a reload)
 - NEW `site/hfstatic/src/autorefresh.js` (loaded by `hubchrome.js`, copied by `build_static.py`): polls the dataset head commit (one small `revision/main` call, `cache:'no-store'`) about every 60 s while the tab is visible and unlocked, again on visible/focus/online, never more than one check per 30 s, exponential back-off on errors, paused while hidden, offline, locked or during an admin commit. `index.json` is re-read only when the head moved.
 - Applies changes in place (`state.clips/folders/trash`, unchanged objects keep identity): folder, category, sort, language filter, search, scroll and chosen variant stay. Nothing is applied while any dialog is open or a video plays (clip view, edit form, post-kit sheet, card sheet); it is applied about 1 s after they close. A tiny "Updated" flash shows only when something changed.
