@@ -42,7 +42,7 @@ const server = http.createServer((q, r) => {
   const base = `http://127.0.0.1:${server.address().port}`, browser = await chromium.launch();
   async function session(hub, { poll = 600, viewport = { width: 360, height: 800 }, feedOn = false } = {}) {
     const ctx = await browser.newContext({ viewport, colorScheme: 'dark', timezoneId: 'UTC' });
-    if (!feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '0'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
+    if (feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '1'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
     await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: base }).catch(() => {});
     await ctx.route('https://huggingface.co/**', r => hub.handle(r));
     await ctx.route(/^https:\/\/([\w-]+\.)+hf\.co\//, r => hub.handle(r));

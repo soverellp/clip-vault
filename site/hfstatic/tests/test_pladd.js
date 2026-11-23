@@ -54,7 +54,7 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
   const at = s => `http://127.0.0.1:${s.address().port}`, BASES = { '': at(server), '/ro/': at(serverRo) }, browser = await chromium.launch();
   async function session(hub, { mode = '', width = 390, blockStorage = false, feedOn = false, hash = '', after = '.folder-grid .folder', share = false } = {}) {
     const ctx = await browser.newContext({ viewport: { width, height: 844 }, colorScheme: 'dark', timezoneId: 'UTC', acceptDownloads: true });
-    if (!feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '0'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
+    if (feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '1'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
     await ctx.route('https://huggingface.co/**', r => hub.handle(r));
     await ctx.route(/^https:\/\/([\w-]+\.)+hf\.co\//, r => hub.handle(r));
     const page = await ctx.newPage(), errs = [];

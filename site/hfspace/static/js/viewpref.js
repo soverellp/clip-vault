@@ -2,9 +2,9 @@
 const PM_KEY = 'cv.postmode';
 export function readPostMode() { try { return localStorage.getItem(PM_KEY) !== '0'; } catch { return true; } }
 export function writePostMode(on) { try { localStorage.setItem(PM_KEY, on ? '1' : '0'); } catch { /* storage blocked: the switch still works for this visit */ } }
-// Post mode (the swipe feed) opens on first load unless the viewer turned it off. Key 'cv.feed' = '1' | '0'; default ON, works without storage.
+// Post mode (the swipe feed) opens on first load unless the viewer turned it off. Key 'cv.feed' = '1' | '0'; default OFF since 2026-11-23 (owner), works without storage.
 const FEED_KEY = 'cv.feed';
-export function readFeedDefault() { try { return localStorage.getItem(FEED_KEY) !== '0'; } catch { return true; } }
+export function readFeedDefault() { try { return localStorage.getItem(FEED_KEY) === '1'; } catch { return false; } }
 export function writeFeedDefault(on) { try { localStorage.setItem(FEED_KEY, on ? '1' : '0'); } catch { /* storage blocked: the switch still works for this visit */ } }
 // Playlist add memory (D51): last playlists, unticked versions, chosen mode. Key 'cv.pl' = JSON text (see parsePref in playlists.js). Works without storage (kept in memory for the visit).
 import { parsePref, prefText } from './playlists.js';

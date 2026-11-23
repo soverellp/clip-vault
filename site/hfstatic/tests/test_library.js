@@ -44,7 +44,7 @@ const server = http.createServer((q, r) => {
   const base = `http://127.0.0.1:${server.address().port}`, browser = await chromium.launch();
   async function session(hub, o = {}) {
     const ctx = await browser.newContext({ viewport: o.viewport || { width: 390, height: 844 }, colorScheme: o.scheme || 'dark', acceptDownloads: true, hasTouch: !!o.touch, timezoneId: 'UTC' });
-    if (!o.feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '0'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
+    if (o.feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '1'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
     await ctx.route('https://huggingface.co/**', (r) => hub.handle(r));
     await ctx.route(/^https:\/\/([\w-]+\.)+hf\.co\//, (r) => hub.handle(r));
     const page = await ctx.newPage(), errs = [];
@@ -373,18 +373,16 @@ const server = http.createServer((q, r) => {
       await ctx.close();
     }
     {
-      // D49: Post mode (the swipe feed) is ON by default; the "Post mode on start" switch turns it off and the choice is remembered
-      const hub = hubWith(FX.index()); const { ctx, page } = await session(hub, { feedOn: true });
-      await page.waitForSelector('dialog.pm[open]', { timeout: 8000 }).catch(() => {});
-      ok(await page.isVisible('dialog.pm[open]') && /^#\/post\//.test(await page.evaluate(() => location.hash)), 'Post mode default on: the feed opens on first load');
-      await page.click('.pm-close'); await sleep(500);
-      ok(!(await page.isVisible('dialog.pm[open]')) && (await page.getAttribute('#feed-toggle', 'aria-pressed')) === 'true' && await page.isVisible('#feed-toggle'), 'closing the feed shows the library; the Post mode switch is visible and ON');
-      ok(await page.isVisible('#pm-toggle') && await page.isVisible('#post-mode-btn') && await noHScroll(page), 'Post info switch and Post mode button still there, no sideways scroll');
+      // D49 (changed 2026-11-23, owner): Post mode (the swipe feed) is OFF by default; the "Post mode on start" switch turns it on and the choice is remembered
+      const hub = hubWith(FX.index()); const { ctx, page } = await session(hub, {});
+      await sleep(800);
+      ok(!(await page.isVisible('dialog.pm[open]')) && (await page.getAttribute('#feed-toggle', 'aria-pressed')) === 'false' && await page.isVisible('#feed-toggle'), 'Post mode default OFF: the normal grid opens on first load and the switch is visible');
+      ok(await page.isVisible('#pm-toggle') && await page.isVisible('#post-mode-btn') && await noHScroll(page), 'Post info switch and Post mode button there, no sideways scroll');
       await page.click('#feed-toggle'); await sleep(150);
-      ok((await page.getAttribute('#feed-toggle', 'aria-pressed')) === 'false' && (await page.evaluate(() => localStorage.getItem('cv.feed'))) === '0', 'switch OFF is stored');
+      ok((await page.getAttribute('#feed-toggle', 'aria-pressed')) === 'true' && (await page.evaluate(() => localStorage.getItem('cv.feed'))) === '1', 'switch ON is stored');
       const p2 = await ctx.newPage(); await p2.goto(base); await p2.waitForSelector('#signin:not([hidden]) #pp-input'); await p2.uncheck('#remember-cb'); await p2.fill('#pp-input', PASS); await p2.click('#signin button[type=submit]');
-      await p2.waitForSelector('.folder-grid .folder, li.card .card-link', { timeout: 15000 }); await sleep(800);
-      ok(!(await p2.isVisible('dialog.pm[open]')) && (await p2.getAttribute('#feed-toggle', 'aria-pressed')) === 'false', 'off persists: the next visit opens the normal grid');
+      await p2.waitForSelector('dialog.pm[open], .folder-grid .folder, li.card .card-link', { timeout: 15000 }); await sleep(800);
+      ok(await p2.isVisible('dialog.pm[open]') && (await p2.getAttribute('#feed-toggle', 'aria-pressed')) === 'true', 'on persists: the next visit opens in Post mode');
       await ctx.close();
     }
   } catch (e) { fail++; console.log('FAIL exception: ' + e.stack); }
