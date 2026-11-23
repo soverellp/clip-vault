@@ -147,6 +147,39 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
     }
 
     // ================= toasts: Undo, Change, quick re-save, cap 3, non-blocking, auto-dismiss; versions memory (phone)
+    // ================= card layout regression (owner bug, phone): no overlapping boxes inside a card, no card on top of the next one, no giant gap
+    for (const width of [390, 1280]) for (const pinfoOn of [true, false]) {
+      const T = `[layout ${width} post-info ${pinfoOn ? 'on' : 'off'}] `;
+      const { ctx, page } = await session(newHub(), { width }); await openFolder(page, S1);
+      if ((await page.getAttribute('#pm-toggle', 'aria-pressed') === 'true') !== pinfoOn) { await page.click('#pm-toggle'); await sleep(300); }
+      await page.waitForSelector(pinfoOn ? 'li.card .pinfo' : 'li.card .card-in'); await sleep(900);   // card entrance animation
+      const r = await page.evaluate(() => {
+        const box = e => { const b = e.getBoundingClientRect(); return { x: b.x, y: b.y, r: b.right, b: b.bottom, w: b.width, h: b.height }; };
+        const hit = (a, b) => a.w > 0 && a.h > 0 && b.w > 0 && b.h > 0 && a.x < b.r - 1 && b.x < a.r - 1 && a.y < b.b - 1 && b.y < a.b - 1;
+        const cards = [...document.querySelectorAll('ul.grid.moments li.card')].filter(c => c.offsetParent), bad = [], gaps = [];
+        for (const c of cards) {
+          const parts = ['.poster', '.title', '.tpill', '.vpill', '.pinfo .pi-title', '.pinfo .pi-cap', '.pinfo .pi-tags', '.pinfo .pi-actions', '.pinfo'].map(q => [q, c.querySelector(q)]).filter(([, e]) => e && e.offsetParent);
+          const rows = [...c.querySelectorAll('.pinfo > *')].filter(e => e.offsetParent).map(e => ['pinfo>' + e.className, e]);
+          const all = parts.filter(([q]) => q !== '.pinfo').concat(rows);
+          for (let i = 0; i < all.length; i++) for (let j = i + 1; j < all.length; j++) {
+            const [qa, ea] = all[i], [qb, eb] = all[j]; if (ea.contains(eb) || eb.contains(ea)) continue;
+            if (hit(box(ea), box(eb))) bad.push(qa + ' x ' + qb);
+          }
+          const cb = box(c), ink = [...c.querySelectorAll('.card-in, .pinfo')].map(box);
+          if (ink.some(k => k.b > cb.b + 1)) bad.push('content sticks out of the card');
+          const link = c.querySelector('.card-in'), pill = c.querySelector('.vpill:not([hidden])'), body = c.querySelector('.card-body');
+          if (link && body) { const lb = box(link), bb = box(body); const used = Math.max(...[...body.children].filter(e => e.offsetParent).map(e => box(e).b), ...[...c.querySelectorAll('.tpill:not([hidden]),.vpill:not([hidden])')].map(e => box(e).b), box(c.querySelector('.poster')).b); if (lb.b - used > 60) gaps.push(Math.round(lb.b - used)); }
+        }
+        for (let i = 0; i + 1 < cards.length; i++) { const a = box(cards[i]), b = box(cards[i + 1]); if (hit(a, b) && Math.abs(a.x - b.x) < 5) bad.push('card ' + i + ' overlaps card ' + (i + 1)); }
+        return { n: cards.length, bad: [...new Set(bad)].slice(0, 6), gaps };
+      });
+      ok(r.n >= 2 && r.bad.length === 0, T + 'no overlapping boxes between poster, title, text, caption actions and version toggles, no card over the next (' + r.n + ' cards)' + (r.bad.length ? ' ' + JSON.stringify(r.bad) : ''));
+      ok(r.gaps.length === 0, T + 'no giant empty gap inside a card' + (r.gaps.length ? ' ' + r.gaps : ''));
+      ok(await noOverflow(page), T + 'no horizontal scroll');
+      await shot(page, `layout_${width}_${pinfoOn ? 'on' : 'off'}.png`);
+      await ctx.close();
+    }
+    if (process.env.LAYOUT_ONLY) { console.log(`layout only: ${pass} pass, ${fail} fail`); process.exit(fail ? 1 : 0); }
     {
       const hub = newHub(); hub.put(PF, JSON.stringify(SEEDPL)); const { ctx, page, errs } = await session(hub);
       await openFolder(page, S1);

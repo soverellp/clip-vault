@@ -37,6 +37,12 @@ let bad = 0; const say = (c, m) => { if (!c) bad++; console.log((c ? 'ok ' : 'FA
       const caps = await page.evaluate(async () => { try { const m = await import('/js/state.js'); return JSON.stringify(m.state.me?.capabilities); } catch (e) { return 'noimport ' + e.message; } });
       console.log('caps', caps);
       await page.screenshot({ path: path.join(OUT, 'list.png') });
+      if (MODE === 'layout') {
+        const info = await page.evaluate(() => { const c = document.querySelector('ul.grid.moments li.card'); const tree = (e, d) => d > 4 ? [] : [...e.children].map(k => { const r = k.getBoundingClientRect(); return { c: (k.tagName + '.' + k.className).slice(0, 40), x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), pos: getComputedStyle(k).position, kids: tree(k, d + 1) }; }); c.scrollIntoView(); return JSON.stringify({ grid: document.querySelector('ul.grid.moments').dataset.mode, tree: tree(c, 0) }); });
+        console.log(info);
+        await page.evaluate(() => document.querySelector('ul.grid.moments li.card').scrollIntoView()); await sleep(600);
+        await page.screenshot({ path: path.join(OUT, 'cards.png') });
+      }
       if (MODE === 'diag') {
         await page.click('li.card .pi-add').catch(e => console.log('no .pi-add', e.message.slice(0, 80)));
         await sleep(800); console.log('toasts', JSON.stringify(await toasts(page)));
