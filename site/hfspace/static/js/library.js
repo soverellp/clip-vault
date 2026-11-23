@@ -10,6 +10,8 @@ import { announce, haptic } from './a11y.js';
 import { openPalette } from './palette.js';
 import { chips, postState, openCardSheet, startPost, downloadAll, canShortlist, shortlisted, shortlistCount, toggleShortlist, copyShortlist, SHL_HINT } from './kit.js';
 import { keySet, momentKey } from './shortlist.js';
+import { paintPostInfo, openAddToPlaylist, addShortlistedToPlaylist, ensureCss } from './plui.js';
+import { readPostMode, writePostMode } from './viewpref.js';
 import * as motion from './kit.js';
 
 const DAY = 864e5;
@@ -142,6 +144,7 @@ function fillCard(li, m, c, view) {
   q('.ribbon').hidden = !(view === 'library' && isNew(c));
   const pc = q('.pc'); if (pc) { pc.replaceChildren(view === 'library' ? chips(c) : ''); pc.hidden = view !== 'library'; }
   paintShl(li, c, view);
+  paintPostInfo(li, c, view);
   const mb = li.querySelector('.card-more'); if (mb) mb.setAttribute('aria-label', `More actions for ${titleOf(c)}`);
   { const by = q('.po-badges'), po = postedOnOf(c); by.hidden = !po.length; by.replaceChildren(...po.map(k => h('span', { class: 'po-badge', 'data-p': k, text: platformLabel(k) }))); }
   q('.stream').textContent = pretty(c.stream); q('.size').textContent = human(c.size);
@@ -413,6 +416,8 @@ function updateQueue() {
 function updateShortlistBar() {
   const n = shortlistCount(), show = state.view === 'library' && (n > 0 || state.shortlistOnly || canShortlist());
   refs.shlRow.hidden = !show;
+  refs.plRow.hidden = state.view !== 'library'; refs.pmToggle.setAttribute('aria-pressed', String(state.postMode)); refs.pmToggle.classList.toggle('on', state.postMode);
+  refs.pmToggle.querySelector('.pm-state').textContent = state.postMode ? 'On' : 'Off'; refs.plCount.textContent = String(state.playlists.playlists.length); refs.shlAdd.disabled = n === 0;
   const chip = refs.shlChip; chip.setAttribute('aria-pressed', String(state.shortlistOnly)); chip.classList.toggle('on', state.shortlistOnly);
   chip.querySelector('.n').textContent = String(n); refs.shlCopy.disabled = n === 0;
 }
@@ -495,7 +500,13 @@ export function build(root) {
   const groupB = btn('Group', { ic: 'layers', kind: 'ghost', cls: 'group-btn', on: () => { state.group = !state.group; update(); announce(state.group ? 'Grouped by stream' : 'Ungrouped'); } }); groupB.id = 'group-btn'; groupB.setAttribute('aria-pressed', 'false');
   const shlChip = h('button', { type: 'button', class: 'chip shl-chip', id: 'shl-chip', 'aria-pressed': 'false', on: { click: () => { state.shortlistOnly = !state.shortlistOnly; update({ flip: false }); announce(`Shortlisted: ${state.shortlistOnly ? 'on' : 'off'}, ${shortlistCount()} moments`); } } }, icon('star'), h('span', { class: 'lbl', text: 'Shortlisted' }), h('span', { class: 'n', text: '0' }));
   const shlCopy = btn('Copy shortlist', { ic: 'copy', kind: 'ghost', cls: 'sm shl-copy', on: e => copyShortlist(e.currentTarget) }); shlCopy.id = 'shl-copy';
-  const shlRow = h('div', { class: 'shl-row', role: 'group', 'aria-label': 'Shortlist', hidden: true }, shlChip, shlCopy);
+  const shlAdd = btn('Add shortlisted to playlist', { ic: 'plus', kind: 'ghost', cls: 'sm shl-add', on: e => addShortlistedToPlaylist(e.currentTarget) }); shlAdd.id = 'shl-add';
+  const shlRow = h('div', { class: 'shl-row', role: 'group', 'aria-label': 'Shortlist', hidden: true }, shlChip, shlCopy, shlAdd);
+  state.postMode = readPostMode(); ensureCss();
+  const plCount = h('span', { class: 'n', text: '0' });
+  const plLink = h('a', { class: 'btn ghost sm pl-link', id: 'pl-link', href: '#/playlists' }, icon('list'), h('span', { class: 'lbl', text: 'Playlists' }), plCount);
+  const pmToggle = h('button', { type: 'button', class: 'btn ghost sm pm-toggle', id: 'pm-toggle', 'aria-pressed': String(state.postMode), title: 'Show post title, caption and hashtags on every card', on: { click: () => { state.postMode = !state.postMode; writePostMode(state.postMode); update({ flip: false }); announce(state.postMode ? 'Post info on' : 'Post info off'); } } }, icon('send'), h('span', { class: 'lbl', text: 'Post info' }), h('span', { class: 'pm-state', text: '' }));
+  const plRow = h('div', { class: 'pl-row', role: 'group', 'aria-label': 'Playlists and post info' }, plLink, pmToggle);
   const tabsEl = h('nav', { class: 'tabs', 'aria-label': 'Sections', hidden: true });
   const filterN = h('span', { class: 'n', hidden: true, 'aria-hidden': 'true' });
   const filterBtn = h('button', { type: 'button', id: 'filter-btn', class: 'btn filter-btn', 'aria-expanded': String(state.filterOpen), 'aria-controls': 'filter-panel', on: { click: () => setFilterOpen(!state.filterOpen) } }, icon('layers'), h('span', { class: 'lbl', text: 'Filter' }), filterN);
@@ -525,8 +536,8 @@ export function build(root) {
   const cats = h('div', { class: 'cats', role: 'group', 'aria-label': 'Categories', hidden: true });
   const fgrid = h('ul', { class: 'folder-grid', 'aria-label': 'Streams', hidden: true });
   const panel = h('section', { class: 'filter-panel', id: 'filter-panel', 'aria-label': 'Filters', hidden: !state.filterOpen }, homeF, toolRow, qseg, streams, postedOn, moreF);
-  root.append(heroEl, tabsEl, head, tools, vsort, langbar, shlRow, panel, trashBar, count, cats, skel, fgrid, grid, empty);
-  refs = { shlRow, shlChip, shlCopy, vsort, langbar, homeF, sortWrap, langTag, root, headImg, grid, fgrid, cats, head, back, headTitle, headSub, panel, filterBtn, filterN, postBtn, postSlot, heroCta, seg, toolRow, skel, empty, count, q, streams, postedOn, tags: moreF.querySelector('#tagchips'), moreF, score, scoreVal, modeG, modeL, selBtn, tabs: tabsEl, hero: heroEl, tools, trashBar, stClips, stTime, stSize, stReady, sort, qseg, postF, groupB };
+  root.append(heroEl, tabsEl, head, tools, vsort, langbar, plRow, shlRow, panel, trashBar, count, cats, skel, fgrid, grid, empty);
+  refs = { plRow, plCount, pmToggle, shlAdd, shlRow, shlChip, shlCopy, vsort, langbar, homeF, sortWrap, langTag, root, headImg, grid, fgrid, cats, head, back, headTitle, headSub, panel, filterBtn, filterN, postBtn, postSlot, heroCta, seg, toolRow, skel, empty, count, q, streams, postedOn, tags: moreF.querySelector('#tagchips'), moreF, score, scoreVal, modeG, modeL, selBtn, tabs: tabsEl, hero: heroEl, tools, trashBar, stClips, stTime, stSize, stReady, sort, qseg, postF, groupB };
 
   io = new IntersectionObserver(es => {
     for (const e of es) if (e.isIntersecting) {

@@ -17,7 +17,7 @@ import { openPalette } from './palette.js';
 import { initMagnet, loadPostMode, postModule, startPost, openShortcuts } from './kit.js';
 
 const root = document.documentElement;
-let shell, signin, topbar, tabs, browse, auditEl, usersEl, parts = {}, inApp = false;
+let shell, signin, topbar, tabs, browse, auditEl, usersEl, plEl, parts = {}, inApp = false;
 
 function buildSignin() {
   const slot = h('div', { class: 'gbtn', id: 'gbtn' });
@@ -47,8 +47,8 @@ function buildShell() {
     h('span', { class: 'grow' }), ro, upB, palB, powerB, themeB, who, outB);
   tabs = h('nav', { class: 'tabs', id: 'tabs', 'aria-label': 'Sections', hidden: true });
   const main = h('main', { id: 'main', tabindex: '-1' });
-  browse = h('div', { class: 'view', id: 'browse' }); auditEl = h('div', { class: 'view', id: 'audit-view', hidden: true }); usersEl = h('div', { class: 'view', id: 'users-view', hidden: true });
-  main.append(tabs, browse, auditEl, usersEl);
+  browse = h('div', { class: 'view', id: 'browse' }); auditEl = h('div', { class: 'view', id: 'audit-view', hidden: true }); usersEl = h('div', { class: 'view', id: 'users-view', hidden: true }); plEl = h('div', { class: 'view', id: 'pl-view', hidden: true });
+  main.append(tabs, browse, auditEl, usersEl, plEl);
   shell = h('div', { id: 'shell', hidden: true }, topbar, main);
   document.getElementById('app').append(shell);
   lib.build(browse);
@@ -109,6 +109,8 @@ function route() {
     return;
   }
   drawer.close();
+  const plm = /^#\/(playlists|templates)(?:\/.+)?$/.exec(hash);
+  if (plm) { applyView(plm[1]); return; }
   const sm = /^#\/stream\/(.+)$/.exec(hash);
   let v = hash === '#/trash' ? 'trash' : hash === '#/audit' ? 'audit' : hash === '#/users' ? 'users' : 'library';
   if ((v !== 'library' && !isAdmin()) || (v === 'users' && !state.me?.capabilities?.users)) { v = 'library'; }
@@ -127,17 +129,19 @@ let lastView = null;
 function applyView(v) {
   const changed = v !== lastView; lastView = v; state.view = v;
   const isBrowse = v === 'library' || v === 'trash';
-  browse.hidden = !isBrowse; auditEl.hidden = v !== 'audit'; usersEl.hidden = v !== 'users';
+  const isPl = v === 'playlists' || v === 'templates';
+  browse.hidden = !isBrowse; auditEl.hidden = v !== 'audit'; usersEl.hidden = v !== 'users'; plEl.hidden = !isPl;
   if (isBrowse) {
     if (state.selecting && changed) { state.selecting = false; state.selected.clear(); emit('selection'); }
     lib.setView(v);
     if (v === 'trash' && !state.trashLoaded) loadTrash();
   } else hero.mount(null);
+  if (isPl) { if (v === 'playlists') import('./plview.js').then(m => { if (state.view === v) m.render(plEl, location.hash); }); else import('./tplview.js').then(m => { if (state.view === v) m.render(plEl); }); }
   if (changed) {
-    const el = isBrowse ? browse : v === 'audit' ? auditEl : usersEl; el.classList.remove('view-in'); void el.offsetWidth; el.classList.add('view-in');
+    const el = isBrowse ? browse : isPl ? plEl : v === 'audit' ? auditEl : usersEl; el.classList.remove('view-in'); void el.offsetWidth; el.classList.add('view-in');
     if (v === 'audit') renderAudit(auditEl); if (v === 'users') renderUsers(usersEl);
-    document.title = ({ library: 'Library', trash: 'Trash', audit: 'Audit log', users: 'People' }[v]) + ' - Clip Vault';
-    announce(`${({ library: 'Library', trash: 'Trash', audit: 'Audit log', users: 'People' })[v]} view`);
+    document.title = ({ library: 'Library', trash: 'Trash', audit: 'Audit log', users: 'People', playlists: 'Playlists', templates: 'Templates' }[v]) + ' - Clip Vault';
+    announce(`${({ library: 'Library', trash: 'Trash', audit: 'Audit log', users: 'People', playlists: 'Playlists', templates: 'Templates' })[v]} view`);
   }
   refreshChrome(); emit('view', v);
 }

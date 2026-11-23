@@ -466,8 +466,9 @@ const server = http.createServer((q, r) => {
       const dist = fs.readdirSync(path.join(DIST, 'js')).map(f => [f, fs.readFileSync(path.join(DIST, 'js', f), 'utf8')]);
       const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\w'"`])\/\/.*$/gm, '$1');
       const rm = s => s.replace(/localStorage\.(getItem\(PASS_KEY\)|setItem\(PASS_KEY, v\)|removeItem\(PASS_KEY\))/g, '');
+      const rmPm = s => s.replace(/localStorage\.(getItem\(PM_KEY\)|setItem\(PM_KEY, on \? '1' : '0'\))/g, '');   // D47: the Post info switch, viewpref.js only
       const bad = /localStorage|sessionStorage|indexedDB|document\.cookie|\beval\s*\(|new Function|innerHTML|outerHTML|insertAdjacentHTML|document\.write|serviceWorker|setAttribute\(\s*['"]style['"]|cssText/;
-      ok(dist.every(([f, s]) => !bad.test(strip(f === 'hubchrome.js' ? rm(s) : s))), 'forbidden DOM/storage APIs: none in any dist js file except the three cv.pass calls in hubchrome.js (' + dist.length + ' files)');
+      ok(dist.every(([f, s]) => !bad.test(strip(f === 'hubchrome.js' ? rm(s) : f === 'viewpref.js' ? rmPm(s) : s))), 'forbidden DOM/storage APIs: none in any dist js file except the three cv.pass calls in hubchrome.js and the two cv.postmode calls in viewpref.js (' + dist.length + ' files)');
       const mine = ['hubapi.js', 'framebust.js'].map(f => fs.readFileSync(path.join(ROOT, 'src', f), 'utf8')).join('\n');
       const chrome = rm(fs.readFileSync(path.join(ROOT, 'src', 'hubchrome.js'), 'utf8'));
       ok(!/localStorage|sessionStorage|indexedDB|document\.cookie|innerHTML|document\.write|serviceWorker/.test(chrome.replace(/\/\/.*$/gm, '')) && (fs.readFileSync(path.join(ROOT, 'src', 'hubchrome.js'), 'utf8').match(/localStorage/g) || []).length === 3, 'hubchrome.js: localStorage appears exactly 3 times (get/set/remove of PASS_KEY), no other storage API');
