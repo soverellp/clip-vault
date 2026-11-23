@@ -26,7 +26,7 @@ REPO = HERE.parents[1]
 _spec = importlib.util.spec_from_file_location("with_vault_creds", HERE / "with_vault_creds.py")
 wvc = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(wvc)  # masking helpers, read-only check
 
-ALLOWED_SCRIPTS = wvc.ALLOWED_SCRIPTS + (".claude/skills/clips/scripts/download/kaggle.py", "site/hfvault/check_creds.py", "site/hfstatic/check_live_config.py", "site/hfvault/show_stream_times.py", ".claude/skills/clips/scripts/long_run.py")
+ALLOWED_SCRIPTS = wvc.ALLOWED_SCRIPTS + (".claude/skills/clips/scripts/download/kaggle.py", "site/hfvault/check_creds.py", "site/hfstatic/check_live_config.py", "site/hfvault/show_stream_times.py", "site/hfvault/purge_streams.py", ".claude/skills/clips/scripts/long_run.py")
 ALIASES = {"HF_Tokem": "HF_Token", "HF_TOKEN": "HF_Token", "Clip_vault_HFToken": "VAULT_READ_TOKEN",
            "CLIP_VAULT_HFTOKEN": "VAULT_READ_TOKEN"}
 ENV_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")

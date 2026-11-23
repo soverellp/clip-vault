@@ -160,3 +160,4 @@ Flow for the next steps: the user tests on a phone; then the code moves to the G
 9. 2026-11-23 (D49): Post mode feed opens on first load by default; header switch "Post mode on start" (cv.feed) turns it off; Post info switch unchanged.
 
 - D50: clipped_at per clip comes from vault_meta.json (real render time); vault_sync fills a missing one from `created`; meta-only runs never change an existing value; folder time = max clip clipped_at.
+- 2026-11-23: purge flow: purge_streams.py (dry run, then --yes) deletes clips/<id>.*, drops index entries and streams[] entry, scrubs _config refs, audit line; then local git rm of clips + vault_meta emptied so vault_sync cannot re-upload.

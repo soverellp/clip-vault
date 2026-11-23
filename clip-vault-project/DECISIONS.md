@@ -395,3 +395,4 @@ On first load of the Library the Post mode feed opens by itself (once per page l
 
 ## D50. Folder time = newest clip real clipping time
 Kai folders had no clip clipped_at (vault_meta.json), so the folder fell back to a stale stream stamp/date and the US folder (2026-11-20T04:40Z) sorted above them. Fixed: real times (last render commit) written to vault_meta.json and synced with --meta-only; vault_sync now fills a missing clipped_at from `created` (fill-only, never overrides). New read-only `site/hfvault/show_stream_times.py`.
+- 2026-11-23: owner removed ALL clips of 2026-11-16_gta-v-marathon-stream-gamerfleet (15) and 2026-11-14_this-is-not-a-game (3) and both streams[] entries from the vault (one commit, site/hfvault/purge_streams.py), plus local clips/source and index.json clips entries; docs kept. No tombstones.
