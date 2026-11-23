@@ -6,6 +6,7 @@
 // Nothing here is stored anywhere; the tokens stay inside hubapi.js.
 import { state, emit, on } from './state.js';
 import * as api from './api.js';
+import { setPlaylistsDoc } from './data.js';
 
 const override = (() => { const o = globalThis.__clipVaultPollMs; return Number.isFinite(o) && o >= 100 && o <= 600000 ? o : 0; })();
 const POLL_MS = override || 60000, MIN_GAP = override ? Math.round(override / 2) : 30000, MAX_BACKOFF = 5;
@@ -39,6 +40,7 @@ async function fetchAndApply() {
   api.invalidateSnapshot();
   const wantTrash = state.me?.role === 'admin' && state.trashLoaded;
   const [r, st, tr, sl] = await Promise.all([api.listClips(), api.listStreams().catch(() => null), wantTrash ? api.listClips({ trash: true }).catch(() => null) : null, api.listShortlist().catch(() => null)]);
+  const [pl, tp] = await Promise.all([api.listPlaylists().catch(() => null), api.listTemplates().catch(() => null)]);
   if (api.isWriting() || gen !== api.writeGen() || busy() || !state.me) return 'raced';
   const nc = clean(r?.clips), nt = tr ? clean(tr.clips) : null;
   const nf = Array.isArray(st?.streams) ? st.streams.filter(x => x && typeof x.id === 'string') : null;
@@ -46,7 +48,7 @@ async function fetchAndApply() {
   const oldAll = new Map([...state.clips, ...state.trash].map(c => [c.id, c]));
   for (const c of [...nc, ...(nt || [])]) { const o = oldAll.get(c.id); if (o && c.poster && mediaChanged(o, c)) bump(c.poster); }
   const ns = Array.isArray(sl?.ids) ? sl.ids : null;
-  let changed = !same(state.clips, nc) || (nt && !same(state.trash, nt)) || (nf && !same(state.folders, nf)) || (ns && !same(state.shortlist, ns));
+  let changed = !same(state.clips, nc) || (nt && !same(state.trash, nt)) || (nf && !same(state.folders, nf)) || (ns && !same(state.shortlist, ns)) || (pl?.doc && !same(state.playlists, pl.doc)) || (tp?.doc && !same(state.templates, tp.doc));
   if (nf) { const oldF = new Map(state.folders.map(f => [f.id, f])); for (const f of nf) { const o = oldF.get(f.id); if (o && f.thumb && !same(o, f)) bump(f.thumb); } }
   if (!changed) return 'same';
   api.dropMedia?.(drop);
@@ -55,6 +57,8 @@ async function fetchAndApply() {
   if (nt) state.trash = keep(state.trash, nt);
   if (nf) state.folders = keep(state.folders, nf);
   if (ns) state.shortlist = ns;
+  if (pl?.doc) setPlaylistsDoc(pl.doc);
+  if (tp?.doc) state.templates = tp.doc;
   if (r?.counts) state.counts = { ...state.counts, ...r.counts };
   emit('clips');
   requestAnimationFrame(() => { if (Math.abs(window.scrollY - y) > 2) window.scrollTo(0, y); });

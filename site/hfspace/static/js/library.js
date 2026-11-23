@@ -10,6 +10,8 @@ import { announce, haptic } from './a11y.js';
 import { openPalette } from './palette.js';
 import { chips, postState, openCardSheet, startPost, downloadAll, canShortlist, shortlisted, shortlistCount, toggleShortlist, copyShortlist, SHL_HINT } from './kit.js';
 import { keySet, momentKey } from './shortlist.js';
+import { paintPostInfo, addShortlistedToPlaylist, addControl, openStreamMenu, streamMomentKeys, ensureCss } from './plui.js';
+import { readPostMode, writePostMode, readFeedDefault, writeFeedDefault } from './viewpref.js';
 import * as motion from './kit.js';
 
 const DAY = 864e5;
@@ -144,6 +146,7 @@ function fillCard(li, m, c, view) {
   q('.ribbon').hidden = !(view === 'library' && isNew(c));
   const pc = q('.pc'); if (pc) { pc.replaceChildren(view === 'library' ? chips(c) : ''); pc.hidden = view !== 'library'; }
   paintShl(li, c, view);
+  paintPostInfo(li, c, view);
   const mb = li.querySelector('.card-more'); if (mb) mb.setAttribute('aria-label', `More actions for ${titleOf(c)}`);
   { const by = q('.po-badges'), po = postedOnOf(c); by.hidden = !po.length; by.replaceChildren(...po.map(k => h('span', { class: 'po-badge', 'data-p': k, text: platformLabel(k) }))); }
   q('.stream').textContent = pretty(c.stream); q('.size').textContent = human(c.size);
@@ -310,7 +313,7 @@ function chrome(fm, lv, view, folders, total, inFolder) {
   refs.homeF.hidden = !(lib && fm && lv === 'home');
   for (const b of refs.homeF.children) b.setAttribute('aria-pressed', String(state.homeFilter.has(b.dataset.hf)));
   drawSortBar(lib, fm ? lv : 'flat'); drawLangBar(lib && fm && (lv === 'home' || lv === 'search'));
-  refs.langTag.hidden = true;
+  refs.langTag.hidden = true; refs.streamAdd.hidden = true;
   if (!lib || !fm) return;
   const f = lv === 'folder' ? foldersOf(listFor('library'), state.folders).find(x => x.id === state.folder) : null;
   refs.back.hidden = lv === 'home';
@@ -324,6 +327,7 @@ function chrome(fm, lv, view, folders, total, inFolder) {
   // the stream thumbnail behind the heading (a stream page only; fetched like any poster: blob URL, token in the header)
   const tk = lv === 'folder' && f?.thumb ? f.thumb + '|' + (state.mediaRev.get(f.thumb) || 0) : '';
   if (refs.headImg._k !== tk) { refs.headImg._k = tk; refs.head.classList.remove('has-img'); refs.headImg.removeAttribute('src'); if (tk) api.loadImage(refs.headImg, f.thumb).catch(() => {}); }
+  refs.streamAdd.hidden = !(lv === 'folder' && state.view === 'library');
   if (lv === 'folder') {
     const n = catCounts(inFolder);
     const hadFocus = refs.cats.contains(document.activeElement) ? document.activeElement.dataset.cat : null;
@@ -372,7 +376,8 @@ function drawFolders(folders) {
       h('span', { class: 'f-stack' }, h('span', { class: 'f-sheet s2', 'aria-hidden': 'true' }), h('span', { class: 'f-sheet s1', 'aria-hidden': 'true' }), thumb),
       h('span', { class: 'f-info' }, f.channel ? h('span', { class: 'f-ch', text: f.channel }) : null, h('span', { class: 'f-title', text: f.title }),
         h('span', { class: 'f-meta' }, date ? h('span', { class: 'f-date', text: date }) : null, h('span', { class: 'f-n', text: plural(n, 'moment') }), h('span', { class: 'f-size', text: human(secs) }), f.langName ? h('span', { class: 'f-lang', text: f.langName }) : null)));
-    return h('li', { class: 'folder', 'data-stream': f.id }, a);
+    const more = h('button', { type: 'button', class: 'f-more', 'aria-label': `More actions for ${f.title}`, 'aria-haspopup': 'dialog', on: { click: e => { e.preventDefault(); e.stopPropagation(); openStreamMenu(f, e.currentTarget); } } }, icon('dots'));
+    return h('li', { class: 'folder', 'data-stream': f.id }, a, more);
   }));
 }
 function groupBy(list) {
@@ -418,6 +423,8 @@ function updateQueue() {
 function updateShortlistBar() {
   const n = shortlistCount(), show = state.view === 'library' && (n > 0 || state.shortlistOnly || canShortlist());
   refs.shlRow.hidden = !show;
+  refs.plRow.hidden = state.view !== 'library'; refs.pmToggle.setAttribute('aria-pressed', String(state.postMode)); refs.pmToggle.classList.toggle('on', state.postMode);
+  refs.pmToggle.querySelector('.pm-state').textContent = state.postMode ? 'On' : 'Off'; refs.shlAdd.disabled = n === 0;
   const chip = refs.shlChip; chip.setAttribute('aria-pressed', String(state.shortlistOnly)); chip.classList.toggle('on', state.shortlistOnly);
   chip.querySelector('.n').textContent = String(n); refs.shlCopy.disabled = n === 0;
 }
@@ -500,7 +507,13 @@ export function build(root) {
   const groupB = btn('Group', { ic: 'layers', kind: 'ghost', cls: 'group-btn', on: () => { state.group = !state.group; update(); announce(state.group ? 'Grouped by stream' : 'Ungrouped'); } }); groupB.id = 'group-btn'; groupB.setAttribute('aria-pressed', 'false');
   const shlChip = h('button', { type: 'button', class: 'chip shl-chip', id: 'shl-chip', 'aria-pressed': 'false', on: { click: () => { state.shortlistOnly = !state.shortlistOnly; update({ flip: false }); announce(`Shortlisted: ${state.shortlistOnly ? 'on' : 'off'}, ${shortlistCount()} moments`); } } }, icon('star'), h('span', { class: 'lbl', text: 'Shortlisted' }), h('span', { class: 'n', text: '0' }));
   const shlCopy = btn('Copy shortlist', { ic: 'copy', kind: 'ghost', cls: 'sm shl-copy', on: e => copyShortlist(e.currentTarget) }); shlCopy.id = 'shl-copy';
-  const shlRow = h('div', { class: 'shl-row', role: 'group', 'aria-label': 'Shortlist', hidden: true }, shlChip, shlCopy);
+  const shlAdd = btn('Add shortlisted to playlist', { ic: 'plus', kind: 'ghost', cls: 'sm shl-add', on: e => addShortlistedToPlaylist(e.currentTarget) }); shlAdd.id = 'shl-add';
+  const shlRow = h('div', { class: 'shl-row', role: 'group', 'aria-label': 'Shortlist', hidden: true }, shlChip, shlCopy, shlAdd);
+  state.postMode = readPostMode(); ensureCss();
+  const pmToggle = h('button', { type: 'button', class: 'btn ghost sm pm-toggle', id: 'pm-toggle', 'aria-pressed': String(state.postMode), title: 'Show post title, caption and hashtags on every card', on: { click: () => { state.postMode = !state.postMode; writePostMode(state.postMode); update({ flip: false }); announce(state.postMode ? 'Post info on' : 'Post info off'); } } }, icon('send'), h('span', { class: 'lbl', text: 'Post info' }), h('span', { class: 'pm-state', text: '' }));
+  state.feedDefault = readFeedDefault();
+  const feedToggle = h('button', { type: 'button', class: 'btn ghost sm pm-toggle feed-toggle', id: 'feed-toggle', 'aria-pressed': String(state.feedDefault), title: 'Open the Post mode swipe feed when the vault loads', on: { click: () => { state.feedDefault = !state.feedDefault; writeFeedDefault(state.feedDefault); feedToggle.setAttribute('aria-pressed', String(state.feedDefault)); feedToggle.querySelector('.pm-state').textContent = state.feedDefault ? 'On' : 'Off'; announce(state.feedDefault ? 'Post mode opens on start' : 'Post mode does not open on start'); } } }, icon('send'), h('span', { class: 'lbl', text: 'Post mode on start' }), h('span', { class: 'pm-state', text: state.feedDefault ? 'On' : 'Off' }));
+  const plRow = h('div', { class: 'pl-row', role: 'group', 'aria-label': 'Post mode and post info' }, feedToggle, pmToggle);
   const tabsEl = h('nav', { class: 'tabs', 'aria-label': 'Sections', hidden: true });
   const filterN = h('span', { class: 'n', hidden: true, 'aria-hidden': 'true' });
   const filterBtn = h('button', { type: 'button', id: 'filter-btn', class: 'btn filter-btn', 'aria-expanded': String(state.filterOpen), 'aria-controls': 'filter-panel', on: { click: () => setFilterOpen(!state.filterOpen) } }, icon('layers'), h('span', { class: 'lbl', text: 'Filter' }), filterN);
@@ -526,12 +539,13 @@ export function build(root) {
   const headImg = h('img', { class: 'ph-img', alt: '', decoding: 'async' });
   headImg.addEventListener('load', () => refs.head.classList.add('has-img')); headImg.addEventListener('error', () => refs.head.classList.remove('has-img'));
   const langTag = h('span', { class: 'lang-tag', hidden: true });
-  const head = h('header', { class: 'page-head', hidden: true }, headImg, back, headTitle, headSub, langTag);
+  const streamAdd = addControl(() => streamMomentKeys(state.folder), () => `All moments of ${state.folders.find(f => f.id === state.folder)?.title || 'this stream'}`, { cls: 'stream-add', main: 'stream-add-b', more: 'stream-add-more' }); streamAdd.hidden = true;
+  const head = h('header', { class: 'page-head', hidden: true }, headImg, back, headTitle, headSub, langTag, streamAdd);
   const cats = h('div', { class: 'cats', role: 'group', 'aria-label': 'Categories', hidden: true });
   const fgrid = h('ul', { class: 'folder-grid', 'aria-label': 'Streams', hidden: true });
   const panel = h('section', { class: 'filter-panel', id: 'filter-panel', 'aria-label': 'Filters', hidden: !state.filterOpen }, homeF, toolRow, qseg, streams, postedOn, moreF);
-  root.append(heroEl, tabsEl, head, tools, vsort, langbar, shlRow, panel, trashBar, count, cats, skel, fgrid, grid, empty);
-  refs = { shlRow, shlChip, shlCopy, vsort, langbar, homeF, sortWrap, langTag, root, headImg, grid, fgrid, cats, head, back, headTitle, headSub, panel, filterBtn, filterN, postBtn, postSlot, heroCta, seg, toolRow, skel, empty, count, q, streams, postedOn, tags: moreF.querySelector('#tagchips'), moreF, score, scoreVal, modeG, modeL, selBtn, tabs: tabsEl, hero: heroEl, tools, trashBar, stClips, stTime, stSize, stReady, sort, qseg, postF, groupB };
+  root.append(heroEl, tabsEl, head, tools, vsort, langbar, plRow, shlRow, panel, trashBar, count, cats, skel, fgrid, grid, empty);
+  refs = { plRow, streamAdd, pmToggle, shlAdd, shlRow, shlChip, shlCopy, vsort, langbar, homeF, sortWrap, langTag, root, headImg, grid, fgrid, cats, head, back, headTitle, headSub, panel, filterBtn, filterN, postBtn, postSlot, heroCta, seg, toolRow, skel, empty, count, q, streams, postedOn, tags: moreF.querySelector('#tagchips'), moreF, score, scoreVal, modeG, modeL, selBtn, tabs: tabsEl, hero: heroEl, tools, trashBar, stClips, stTime, stSize, stReady, sort, qseg, postF, groupB };
 
   io = new IntersectionObserver(es => {
     for (const e of es) if (e.isIntersecting) {
