@@ -392,3 +392,6 @@ Decision: the owner wanted "Posted on" (platforms), not "Posted by"; `posted_on`
 
 ## D49. Post mode (the swipe feed) opens by default
 On first load of the Library the Post mode feed opens by itself (once per page load, only on the plain library address); the "Post mode on start" switch in the Library header turns it off and the choice is remembered (localStorage key cv.feed, default ON, works without storage). Separate from the "Post info" switch (cv.postmode). Filters and sort unchanged. Patch deploy of js/viewpref, library, state, main; config.json untouched.
+
+## D50. Folder time = newest clip real clipping time
+Kai folders had no clip clipped_at (vault_meta.json), so the folder fell back to a stale stream stamp/date and the US folder (2026-11-20T04:40Z) sorted above them. Fixed: real times (last render commit) written to vault_meta.json and synced with --meta-only; vault_sync now fills a missing clipped_at from `created` (fill-only, never overrides). New read-only `site/hfvault/show_stream_times.py`.
