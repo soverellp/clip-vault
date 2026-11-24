@@ -147,4 +147,14 @@ t('applyTemplateToItems: fills live items, keeps edited ones unless overwrite, s
   let r = T.applyTemplateToItems(items, kai, clipOf, () => ST, false); assert.deepEqual(Object.keys(r.posts), ['m2']); assert.equal(r.skipped, 1); assert.ok(r.posts.m2.caption.includes('#KaiCenat'));
   r = T.applyTemplateToItems(items, kai, clipOf, () => ST, true); assert.deepEqual(Object.keys(r.posts), ['m1', 'm2']); assert.equal(r.skipped, 0);
 });
+t('captionRest (D54): a caption never repeats the title', () => {
+  assert.equal(P.captionRest('Boss scream', 'Boss scream'), '');
+  assert.equal(P.captionRest('Boss scream', '  boss   SCREAM '), '');
+  assert.equal(P.captionRest('Clutch win', 'Clutch win - he never saw it coming'), 'he never saw it coming');
+  assert.equal(P.captionRest('Clutch win', 'Clutch win\n\nline two'), 'line two');
+  assert.equal(P.captionRest('Clutch win', 'He won the clutch'), 'He won the clutch');
+  assert.equal(P.captionRest('', 'Only caption'), 'Only caption');
+  assert.equal(P.captionRest('Title', ''), '');
+  assert.equal(P.captionRest('Title longer', 'Title'), 'Title');
+});
 console.log(`\n${n} passed, 0 failed`);

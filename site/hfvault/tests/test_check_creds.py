@@ -30,11 +30,11 @@ def test_passphrase_no_value():
     assert C.check_passphrase("a" * 30)[1] is False
 
 def test_kaggle_missing_cli(monkeypatch):
-    monkeypatch.setattr(C.shutil, "which", lambda n: None)
+    monkeypatch.setattr(C, "_kaggle_bin", lambda: None)
     assert "pip install kaggle" in C.check_kaggle("K", "u", "t")[2]
 
 def test_kaggle_results(monkeypatch):
-    monkeypatch.setattr(C.shutil, "which", lambda n: "/x/kaggle")
+    monkeypatch.setattr(C, "_kaggle_bin", lambda: "/x/kaggle")
     mk = lambda rc, err: (lambda *a, **k: subprocess.CompletedProcess(a, rc, "", err))
     monkeypatch.setattr(C.subprocess, "run", mk(0, "")); assert C.check_kaggle("K", "u", "SECRETTOKEN")[1] is True
     monkeypatch.setattr(C.subprocess, "run", mk(1, "401 Unauthorized SECRETTOKEN"))
@@ -42,7 +42,7 @@ def test_kaggle_results(monkeypatch):
 
 def test_run_absent_and_no_leak(monkeypatch, capsys):
     monkeypatch.setattr(C, "whoami", lambda t: (FG_R, None))
-    monkeypatch.setattr(C.shutil, "which", lambda n: None)
+    monkeypatch.setattr(C, "_kaggle_bin", lambda: None)
     monkeypatch.setattr(C.sys, "argv", ["x"])
     env = {"VAULT_READ_TOKEN": "hf_FAKESECRETVALUE", "VAULT_PASSPHRASE": "alpha beta gamma delta epsilon",
            "KAGGLE_USERNAME": "u", "KAGGLE_APITOKEN": "KGAT_FAKESECRET"}

@@ -92,9 +92,11 @@ export function openPostedDetails(c, pk, opener) {
 // ---- the control
 const controls = new Set();
 on('clips', () => { for (const x of [...controls]) { if (!x.el.isConnected && controls.size > 40) controls.delete(x); else x.paint(); } });
-export function postedControl(c, { cls = '' } = {}) {
+// compact = ONE row of five small chips (YT IG TT X +) with the full name in aria-label/title; the date and link editor is then reached from the "..." menu (Posted on...) or the toast.
+const ABBR = { youtube: 'YT', instagram: 'IG', tiktok: 'TT', x: 'X', other: '+' };
+export function postedControl(c, { cls = '', compact = false } = {}) {
   ensureCss();
-  const el = h('div', { class: `po-ctl ${cls}`.trim(), role: 'group', 'aria-label': 'Posted on', 'data-k': momentKey(c) });
+  const el = h('div', { class: `po-ctl ${compact ? 'compact ' : ''}${cls}`.trim(), role: 'group', 'aria-label': 'Posted on', 'data-k': momentKey(c) });
   const hint = h('p', { class: 'po-else', hidden: true }), row = h('div', { class: 'po-row' }), parts = {};
   for (const k of PO_PLATFORMS) {
     const chip = h('button', { type: 'button', class: 'po-chip', 'data-p': k, 'aria-pressed': 'false' });
@@ -108,11 +110,11 @@ export function postedControl(c, { cls = '' } = {}) {
     const m = mergedFor(c), ro = !canEditPl(), else_ = [];
     for (const k of PO_PLATFORMS) {
       const { chip, det } = parts[k], L = PO_LABEL[k], v = m[k], on_ = !!v;
-      if (chip.getAttribute('aria-pressed') !== String(on_) || !chip.firstChild) chip.replaceChildren(...(on_ ? [icon('check')] : []), h('span', { text: L }));
+      if (chip.getAttribute('aria-pressed') !== String(on_) || !chip.firstChild) chip.replaceChildren(...(on_ && !compact ? [icon('check')] : []), h('span', { text: compact ? ABBR[k] : L }));
       chip.setAttribute('aria-pressed', String(on_)); chip.classList.toggle('on', on_); chip.setAttribute('aria-disabled', String(ro));
       chip.setAttribute('aria-label', on_ ? `${L}: posted. Tap to unmark.` : `${L}: not posted. Tap to mark as posted.`);
       chip.title = on_ ? `Posted on ${L}${v.date ? ' on ' + v.date : ''}` : `Mark as posted on ${L}`;
-      det.hidden = !on_ || ro; det.setAttribute('aria-label', `${L}: set post date and link`); det.title = 'Post date and link';
+      det.hidden = compact || !on_ || ro; det.setAttribute('aria-label', `${L}: set post date and link`); det.title = 'Post date and link';
       if (on_ && v.sources.some(s => s !== 'posted')) else_.push(`${L} (${v.sources.filter(s => s !== 'posted').map(s => SRC_LABEL[s]).join(', ')})`);
     }
     hint.hidden = !else_.length; hint.textContent = else_.length ? 'Also set elsewhere: ' + else_.join(', ') : '';

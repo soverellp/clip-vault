@@ -47,12 +47,18 @@ def check_hf(name, tok, must_be_readonly=False):
         return name, False, "must be read-only but " + desc
     return name, True, desc
 
+def _kaggle_bin():
+    for c in (shutil.which("kaggle"), os.environ.get("KAGGLE_BIN"), "~/kvenv/bin/kaggle", "~/.local/bin/kaggle"):
+        if c and os.path.exists(os.path.expanduser(c)): return os.path.expanduser(c)
+    return None
+
 def check_kaggle(label, user, token):
-    if not shutil.which("kaggle"): return label, False, "kaggle CLI missing: pip install kaggle"
+    kbin = _kaggle_bin()
+    if not kbin: return label, False, "kaggle CLI missing: pip install kaggle"
     env = {k: v for k, v in os.environ.items() if not k.startswith("KAGGLE_")}
     env.update(KAGGLE_USERNAME=user, KAGGLE_API_TOKEN=token, KAGGLE_KEY=token)
     try:
-        r = subprocess.run(["kaggle", "kernels", "list", "--mine", "--page-size", "1"], capture_output=True, text=True, env=env, timeout=60)
+        r = subprocess.run([kbin, "kernels", "list", "--mine", "--page-size", "1"], capture_output=True, text=True, env=env, timeout=60)
     except subprocess.TimeoutExpired: return label, False, "kaggle timed out"
     except OSError as e: return label, False, "kaggle could not run (" + type(e).__name__ + ")"
     if r.returncode == 0: return label, True, "login ok"
