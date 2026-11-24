@@ -3,9 +3,6 @@ import { state, canWrite, emit, findClip } from './state.js';
 import { h, icon } from './dom.js';
 import { createModal } from './a11y.js';
 import { titleOf } from './fmt.js';
-import { momentKey } from './shortlist.js';
-import { menuEntries } from './plui.js';
-import { openPostedModal } from './postedui.js';
 import { kitOf, joinKit, copyText, downloadClip, shareClip, PLATFORMS, postedOf, setPosted, startPost } from './kit.js';
 
 export function openCardSheet(c0, { opener } = {}) {
@@ -24,9 +21,11 @@ export function openCardSheet(c0, { opener } = {}) {
   add('Copy YouTube kit', 'copy', () => copyText(joinKit(kit.yt), 'YouTube kit copied'), { id: 'copy-yt' });
   add('Copy Instagram kit', 'copy', () => copyText(joinKit(kit.ig), 'Instagram kit copied'), { id: 'copy-ig' });
   if (c.video) add('Download', 'download', () => downloadClip(c), { id: 'download' });
-  if (!trashed) for (const e of menuEntries(() => [momentKey(c)], () => titleOf(c), opener)) add(e.label, 'plus', e.run, { id: e.id });
   if (!trashed) add('Open in Post mode', 'send', () => startPost(c.id, state.feedIds?.length ? state.feedIds : null, opener), { id: 'post' });
-  if (!trashed) add('Posted on...', 'check', () => openPostedModal(c, opener), { id: 'posted-on' });
+  if (canWrite() && !trashed) for (const pl of PLATFORMS) {
+    const on = !!postedOf(c)[pl.key];
+    add(on ? `Unmark posted on ${pl.name}` : `Mark posted on ${pl.name}`, 'check', () => setPosted(c, pl.key, !on), { id: 'mark-' + pl.cls });
+  }
   if (typeof navigator.share === 'function') add('Share', 'share', () => shareClip(c), { id: 'share' });
   if (canWrite() && !trashed) add('Move to Trash', 'trash', () => emit('act', { type: 'trash', ids: [c.id] }), { danger: true, id: 'trash' });
   m.body.append(list);

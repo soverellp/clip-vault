@@ -6,12 +6,10 @@ import { accentFor, accentFromImage, rgbVar, setAurora } from './color.js';
 import { announce, trapFocus, isTyping } from './a11y.js';
 import { toast } from './toast.js';
 import { titleOf, dur } from './fmt.js';
-import { postedControl } from './postedui.js';
 import { kitOf, joinKit, copyText, downloadClip, chips, toggleBtn, PLATFORMS } from './kit.js';
 import { countOf } from './post.js';
 import * as motion from './kit.js';
 import { openShortcuts } from './shortcuts.js';
-import { playlistsNav } from './plui.js';
 
 let dlg, feed, ctr, bMute, bSafe, sheet, handle, bar, kitEl;
 let ids = [], S = [], idx = -1, muted = true, safeOn = false, sheetOpen = false, playTimer = 0, raf = 0, opener = null, pendingIds = null, opening = false;
@@ -42,7 +40,7 @@ function build() {
   sheet = h('aside', { class: 'pm-sheet', 'data-open': 'false', 'aria-label': 'Post kit' }, handle, bar, kitEl);
   dlg = h('dialog', { class: 'pm', tabindex: '-1', 'aria-label': 'Post mode', 'aria-modal': 'true' },
     h('div', { class: 'pm-aur', 'aria-hidden': 'true' }, h('i'), h('i')),
-    h('div', { class: 'pm-top' }, close, h('span', { class: 'grow' }), ctr, playlistsNav('glass pm-pl'), bSafe, bMute, help), feed, sheet);
+    h('div', { class: 'pm-top' }, close, h('span', { class: 'grow' }), ctr, bSafe, bMute, help), feed, sheet);
   document.getElementById('dialogs').append(dlg);
   trapFocus(dlg);
   dlg.addEventListener('cancel', e => { e.preventDefault(); back(); });
@@ -194,7 +192,8 @@ function renderSheet(c) {
   const row1 = h('div', { class: 'pm-row' }, copyAll(kit.yt, 'YouTube'), copyAll(kit.ig, 'Instagram'), dl);
   curChips = chips(c);
   const row2 = h('div', { class: 'pm-row pm-posted' });
-  { const ctl = postedControl(c, { cls: 'pm-po' }); toggles = [ctl.chipBtn('youtube'), ctl.chipBtn('instagram')]; row2.append(ctl); }
+  if (canWrite()) { for (const pl of PLATFORMS) { const t = toggleBtn(c, pl, { cls: 'sm' }); toggles.push(t); row2.append(t); } }
+  else row2.append(h('span', { class: 'pm-ro muted', text: 'Posted:' }), curChips);
   bar.replaceChildren(h('div', { class: 'pm-meta' }, h('h2', { class: 'pm-title', lang: 'hi-Latn', text: titleOf(c) }), h('span', { class: 'pm-sub', text: `${dur(c.dur)}${c.score != null ? ' · score ' + c.score : ''}` }), canWrite() ? curChips : null), row1, row2);
   const secs = [kit.yt, kit.ig].filter(s => s.fields.length).map(sec => h('section', { class: 'pk-sec', 'data-kind': sec.kind }, h('h3', { text: sec.name === 'YouTube' ? 'YouTube Shorts' : 'Instagram Reels' }), ...sec.fields.map(f => field(f))));
   kitEl.replaceChildren(...(secs.length ? secs : [h('p', { class: 'muted', text: 'No post text for this clip yet.' })]));
@@ -219,6 +218,7 @@ function onClips() {
   if (!dlg?.open || idx < 0) return;
   const c = findClip(ids[idx]); if (!c) { if (ids.length > 1) { toast('That clip was removed.'); } back(); return; }
   S[idx].c = c;
+  for (const t of toggles) t.update(c);
   if (curChips?.isConnected) { const n = chips(c); curChips.replaceWith(n); curChips = n; }
 }
 
@@ -233,7 +233,7 @@ function onKey(e) {
   else if (k === 'k' || (!inSheet && (k === 'ArrowUp' || k === 'PageUp'))) step(-1);
   else if (k === 'c') copyText(joinKit(kit.yt, f => vals.get(f) ?? f.value), 'YouTube kit copied');
   else if (k === 'i') copyText(joinKit(kit.ig, f => vals.get(f) ?? f.value), 'Instagram kit copied');
-  else if (k === 'p' || k === 'P') { const t2 = toggles[k === 'p' ? 0 : 1]; if (t2) t2.click(); else toast('Could not mark this clip as posted.'); }
+  else if (k === 'p' || k === 'P') { const t2 = toggles[k === 'p' ? 0 : 1]; if (t2) t2.click(); else toast('Only an admin with write access can mark clips as posted.'); }
   else if (k === 'd') downloadClip(c);
   else if (k === 'm') setMuted(!muted);
   else if (k === 's') setSafe(!safeOn);

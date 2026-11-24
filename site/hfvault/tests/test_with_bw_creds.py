@@ -196,4 +196,4 @@ def test_item_map_notes_and_field():
              {"name": "Clip Vault Site", "type": 2, "notes": "", "fields": h("")}]
     env, names, ignored = w.map_items(items)
     assert env == {"KAGGLE_USERNAME": "usr1", "KAGGLE_APITOKEN": "tok1", "KAGGLE_USERNAME2": "usr2",
-                   "KAGGLE_APITOKEN2": "tok2", "HF_Token": "hf", "VAULT_WRITE_TOKEN": "hf"} and ignored == 1
+                   "KAGGLE_APITOKEN2": "tok2", "HF_Token": "hf"} and ignored == 1

@@ -80,8 +80,8 @@ def main(argv=None):
     if a.only:
         a.no_build = True
         for f in a.only:
-            if not (re.fullmatch(r"(js|css)/[\w.\-]+\.(js|css)", f) or f == "index.html"):
-                sys.exit(f"error: --only takes js/*.js, css/*.css or index.html paths relative to dist, got {f!r}")
+            if not re.fullmatch(r"(js|css)/[\w.\-]+\.(js|css)", f):
+                sys.exit(f"error: --only takes js/*.js or css/*.css paths relative to dist, got {f!r}")
     if not a.no_build:
         bs.build(a.dist, a.dataset, weak=a.accept_weak_passphrase, sl_dataset=a.shortlist_dataset, sl_path=a.shortlist_path)
     dist = Path(a.dist)

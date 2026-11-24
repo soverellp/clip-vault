@@ -4,9 +4,6 @@
 // Exports the same names as site/hfspace/static/js/api.js (the build checks this). Nothing is ever put in storage.
 import { state, emit } from './state.js';
 import { parseShortlist, parseShortlistStrict, serializeShortlist, toggleEntry } from './shortlist.js';
-import { parsePosted, parsePostedStrict, serializePosted, applyPostedOp } from './posted.js';
-import { parsePlaylists, parsePlaylistsStrict, serializePlaylists, applyPlaylistOp } from './playlists.js';
-import { parseTemplates, parseTemplatesStrict, serializeTemplates, applyTemplateOp } from './templates.js';
 
 export const MODE = 'static';
 const HUB = 'https://huggingface.co';
@@ -33,12 +30,11 @@ let reauthHandler = null;
 export const setReauthHandler = fn => { reauthHandler = fn; };
 
 // ------------------------------------------------------------------ session (memory only)
-let cfg = null, readToken = null, writeToken = null, slToken = null, slState = 'missing', stepUpUntil = 0, failCount = 0, notBefore = 0, snapCache = null;
+let cfg = null, readToken = null, writeToken = null, slToken = null, stepUpUntil = 0, failCount = 0, notBefore = 0, snapCache = null;
 const issuedUrls = new Set(), posterCache = new Map(), posterWait = new Map(), mp4Cache = new Map();
 let flight = null;
 export const isAdminMode = () => !!writeToken;
 export const canShortlistWrite = () => !!slToken;
-// why saving is off (shown to the person in plain words): 'ok' | 'missing' (this site's settings file has no saving key) | 'undecryptable' | 'rejected' (the Hub refused it)
 
 // ------------------------------------------------------------------ config + passphrase
 const hex = s => Uint8Array.from(s.match(/../g) || [], b => parseInt(b, 16));
@@ -86,14 +82,14 @@ export const reauthGoogle = authGoogle;
 export async function loginPassphrase(pw, { reauth = false } = {}) {
   const tok = await checkPassphrase(pw);
   if (reauth) { if (!readToken) throw new ApiError(401, { error: 'unauthorized' }); stepUpUntil = Date.now() + STEP_UP_MS; return null; }
-  readToken = tok.tok; slToken = tok.sl || null; slState = slToken ? 'ok' : (cfg.sl ? 'undecryptable' : 'missing'); snapCache = null;
+  readToken = tok.tok; slToken = tok.sl || null; snapCache = null;
   try { await snapshot(); }
   catch (e) { readToken = slToken = null; throw new ApiError(503, { error: 'vault_unreachable' }); }
   return null;
 }
 // Lock: wipe tokens, revoke every blob URL, clear caches, reload.
 export function wipe() {
-  readToken = writeToken = slToken = null; slState = 'missing'; stepUpUntil = 0; snapCache = null;
+  readToken = writeToken = slToken = null; stepUpUntil = 0; snapCache = null;
   for (const u of issuedUrls) { try { URL.revokeObjectURL(u); } catch { /* ignore */ } }
   issuedUrls.clear(); posterCache.clear(); posterWait.clear(); mp4Cache.clear();
   try { flight?.ac.abort(); } catch { /* ignore */ } flight = null;
@@ -104,7 +100,7 @@ export async function me() {
   if (!readToken) throw new ApiError(401, { error: 'unauthorized' });
   const admin = !!writeToken;
   return { role: admin ? 'admin' : 'viewer', name: admin ? 'Admin' : 'Viewer', email: '', picture: '', csrf: '', root: false, sub: '', can_write: admin,
-    capabilities: { users: false, trash: admin, audit: admin, upload: admin, delete: admin, moments: admin, shortlist: !!slToken }, shortlist_state: slToken ? 'ok' : slState, mode: 'static', dataset: cfg?.dataset };
+    capabilities: { users: false, trash: admin, audit: admin, upload: admin, delete: admin, moments: admin, shortlist: !!slToken }, mode: 'static', dataset: cfg?.dataset };
 }
 
 // ------------------------------------------------------------------ Hub plumbing
@@ -591,7 +587,7 @@ export async function setShortlist(key, on, note) {
         await hubOk(`${HUB}/api/datasets/${cfg.sl.dataset}/commit/main`, { method: 'POST', token: slToken, who: 'shortlist', headers: { 'Content-Type': 'application/x-ndjson' }, body: lines.map(l => JSON.stringify(l)).join('\n') + '\n' });
         snapCache = null; return { ok: true, ids: next };
       } catch (e) {
-        if (e instanceof ApiError && e.code === 'shortlist_token_rejected') { slToken = null; slState = 'rejected'; }
+        if (e instanceof ApiError && e.code === 'shortlist_token_rejected') slToken = null;
         if (e instanceof ApiError && e.code === 'conflict' && attempt < MAX_RETRIES) continue;
         if (e instanceof ApiError && e.code === 'conflict') throw new ApiError(409, { error: 'conflict', message: 'The shortlist changed while you were saving. Try again.' });
         throw e;
@@ -599,69 +595,6 @@ export async function setShortlist(key, on, note) {
     }
   } finally { writing--; writeGeneration++; }
 }
-
-// ------------------------------------------------------------------ playlists and templates (D47): same commit mechanism as the shortlist
-// _config/playlists.json and _config/templates.json live in the shortlist dataset (the clip dataset today). Every change is an OP applied to the
-// file as read at the PARENT revision, committed with an audit line (actor 'shortlist'); an unreadable existing file fails instead of being overwritten.
-const CFGDOCS = {
-  playlists: { path: '_config/playlists.json', parse: parsePlaylists, strict: parsePlaylistsStrict, ser: serializePlaylists, apply: (d, op, now) => applyPlaylistOp(d, op, now), key: 'playlistsP' },
-  posted: { path: '_config/posted.json', parse: parsePosted, strict: parsePostedStrict, ser: serializePosted, apply: (d, op) => applyPostedOp(d, op), key: 'postedP' },
-  templates: { path: '_config/templates.json', parse: parseTemplates, strict: parseTemplatesStrict, ser: serializeTemplates, apply: (d, op) => applyTemplateOp(d, op), key: 'templatesP' },
-};
-async function readCfgDoc(kind) {
-  if (!readToken) throw new ApiError(401, { error: 'unauthorized' });
-  const D = CFGDOCS[kind], snap = await snapshot();
-  snap[D.key] ||= (async () => {
-    try {
-      let text = null;
-      if (slToken && cfg.sl) text = await slRead(D.path, 'main');
-      if (text == null) text = await readText(D.path, snap.rev);
-      return { doc: D.parse(text || ''), exists: text != null };
-    } catch (e) { snap[D.key] = null; throw e; }   // a failed read is NOT an empty file: callers keep what they have
-  })();
-  const r = await snap[D.key];
-  return { doc: r.doc, exists: r.exists, can_write: !!slToken };
-}
-async function writeCfgDoc(kind, op) {
-  if (!readToken) throw new ApiError(401, { error: 'unauthorized' });
-  if (!slToken || !cfg.sl) throw new ApiError(403, { error: 'forbidden' });
-  const D = CFGDOCS[kind];
-  writing++; writeGeneration++;
-  try {
-    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-      const rev = await slHead();
-      let text; try { text = await slRead(D.path, rev); } catch (e) { throw e instanceof ApiError ? e : new ApiError(502, { error: 'upstream_error' }); }
-      let cur; try { cur = D.strict(text); } catch { throw new ApiError(502, { error: 'upstream_error', message: 'The saved file could not be read, so nothing was changed.' }); }
-      const now = new Date();
-      let res; try { res = D.apply(cur, op, isoNow(now)); } catch (e) {
-        if (e?.message === 'notfound') throw new ApiError(404, { error: 'not_found', message: 'That item was changed or removed by someone else.' });
-        throw new ApiError(422, { error: 'invalid' });
-      }
-      if (!res.changed) return { ok: true, doc: res.doc };
-      const apath = `_audit/${now.toISOString().slice(0, 7)}.jsonl`;
-      let old = (await slRead(apath, rev)) || ''; if (old && !old.endsWith('\n')) old += '\n';
-      const line = JSON.stringify({ at: isoNow(now), actor: 'shortlist', action: kind + ':' + String(op.type).slice(0, 30), clip_id: null, detail: op.type === 'multi' ? { ids: [...new Set((op.ops || []).map(o => String(o?.id || '').slice(0, 80)).filter(Boolean))].slice(0, 12) } : { id: String(op.id || op.template?.id || op.moment_id || '').slice(0, 80), ...(op.platform ? { platform: String(op.platform).slice(0, 20) } : {}) } });
-      const lines = [{ key: 'header', value: { summary: res.summary, description: '', parentCommit: rev } },
-        { key: 'file', value: { content: b64(utf8(D.ser(res.doc))), path: D.path, encoding: 'base64' } },
-        { key: 'file', value: { content: b64(utf8(old + line + '\n')), path: apath, encoding: 'base64' } }];
-      try {
-        await hubOk(`${HUB}/api/datasets/${cfg.sl.dataset}/commit/main`, { method: 'POST', token: slToken, who: 'shortlist', headers: { 'Content-Type': 'application/x-ndjson' }, body: lines.map(l => JSON.stringify(l)).join('\n') + '\n' });
-        snapCache = null; return { ok: true, doc: res.doc };
-      } catch (e) {
-        if (e instanceof ApiError && e.code === 'shortlist_token_rejected') { slToken = null; slState = 'rejected'; }
-        if (e instanceof ApiError && e.code === 'conflict' && attempt < MAX_RETRIES) continue;
-        if (e instanceof ApiError && e.code === 'conflict') throw new ApiError(409, { error: 'conflict', message: 'It changed while you were saving. Try again.' });
-        throw e;
-      }
-    }
-  } finally { writing--; writeGeneration++; }
-}
-export const listPlaylists = () => readCfgDoc('playlists');
-export const updatePlaylists = op => writeCfgDoc('playlists', op);
-export const listPosted = () => readCfgDoc('posted');
-export const updatePosted = op => writeCfgDoc('posted', op);
-export const listTemplates = () => readCfgDoc('templates');
-export const updateTemplates = op => writeCfgDoc('templates', op);
 
 export async function patchClip(id, fields) {
   requireAdmin(); validId(id);
