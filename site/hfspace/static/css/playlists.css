@@ -148,6 +148,8 @@ a.pl-card-t:hover{text-decoration:underline}
 .pl-item{display:grid;grid-template-columns:28px 84px minmax(0,1fr) 44px;grid-template-areas:"l t m x" "c c c c" "d d d d" "w w w w";gap:8px 10px;align-items:start;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
 .pl-lead{grid-area:l;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:2px}
 .pl-handle{display:grid;place-items:center;width:28px;height:28px;color:var(--muted);cursor:grab}
+.pl-handle .ic{transform:rotate(90deg);width:18px;height:18px}
+@media (hover:none){.pl-handle{display:none}}
 .pl-n{font-weight:700;font-size:.86rem;color:var(--muted)}
 .pl-thumbw{grid-area:t;width:84px;aspect-ratio:9/16;border-radius:12px;background:var(--panel-2);overflow:hidden;display:block}
 .pl-thumb{width:100%;height:100%;object-fit:cover;display:block}

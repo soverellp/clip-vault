@@ -2,8 +2,11 @@
 // entries: [{ id, label, ic, run, danger, disabled }] (null entries are skipped). Everything is built with textContent (dom.js h()).
 import { h, icon } from './dom.js';
 import { createModal } from './a11y.js';
+import { ensureCss } from './kit.js';
 
-export function openMenu({ title, desc, entries, opener, cls = '' }) {
+export async function openMenu({ title, desc, entries, opener, cls = '' }) {
+  if (document.querySelector('dialog.sheet[open]')) return null;
+  await ensureCss('/css/post.css');   // the action-sheet look lives in post.css (also used by the card sheet)
   if (document.querySelector('dialog.sheet[open]')) return null;
   const m = createModal({ title, desc, cls: `sheet pl-menu ${cls}`.trim() }); m.foot.hidden = true;
   const list = h('ul', { class: 'sheet-list' });

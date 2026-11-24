@@ -122,7 +122,13 @@ let bad = 0; const say = (c, m) => { if (!c) bad++; console.log((c ? 'ok ' : 'FA
         await page.click(card + ' .pl-more'); await page.waitForSelector('dialog.sheet[open].shown'); await page.click('dialog.sheet[open] [data-act="delete"]'); await modal(page); await page.click('dialog.pl-modal[open] .modal-foot button:has-text("Delete")'); await modalGone(page); await sleep(2500); }
       say(!(await page.$('.pl-card:has-text("zz probe")')), 'no "zz probe" playlist left'); await ctx.close();
     } else if (MODE === 'playlistui') {
-      const { page } = await open(390, 844); await openFolder(page); await setPostInfo(page, true);
+      const { page } = await open(390, 844); await sleep(800);
+      for (let fi = 0, nf = (await page.$$('.folder a')).length; fi < nf; fi++) {   // the first folder that has at least two moments
+        await page.$$eval('.folder a', (a, i) => a[i].click(), fi); await page.waitForSelector('ul.grid.moments li.card:not(.sk)', { timeout: 30000 }).catch(() => {}); await page.click('.cat[data-cat="all"]').catch(() => {}); await sleep(1500);
+        if ((await page.$$('ul.grid.moments li.card:not(.sk)')).length >= 2) break;
+        await go(page, '#/', '.folder'); await sleep(600);
+      }
+      await setPostInfo(page, true);
       const NAME = 'zz ui', pl = '.pl-card:has-text("' + NAME + '")';
       const menuOf = async (opener, act) => { await page.click(opener); await page.waitForSelector('dialog.sheet[open].shown'); if (act) { await page.click(`dialog.sheet[open] [data-act="${act}"]`); await sleep(400); } };
       try {
@@ -135,20 +141,27 @@ let bad = 0; const say = (c, m) => { if (!c) bad++; console.log((c ? 'ok ' : 'FA
         say(!/read-only/i.test(await page.textContent('dialog.pl-modal[open] .modal-body')), 'add popup is not read-only');
         await page.fill('#pl-new-name', NAME); await page.click('dialog.pl-modal[open] .pl-create-b'); await sleep(400); await page.click('dialog.pl-modal[open] .pl-save'); await modalGone(page); await sleep(1500);
         await page.evaluate(() => document.querySelectorAll('ul.grid.moments li.card:not(.sk)')[1].scrollIntoView({ block: 'center' })); await sleep(300);
-        await page.click('ul.grid.moments li.card:not(.sk):nth-of-type(2) .pi-add'); await sleep(2500);
+        for (let at = 0; at < 6; at++) {   // add the second moment through the popup (the playlist can take a few seconds to show up after the first save)
+          await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove())); await page.$eval('ul.grid.moments li.card:not(.sk):nth-of-type(2) .pi-add-more', e => e.click()); await modal(page); await sleep(600);
+          const row = await page.$('dialog.pl-modal[open] label.pl-pick-row:has-text("zz ui") input:not([disabled])');
+          if (row) { await row.click(); await page.click('dialog.pl-modal[open] .pl-save'); await modalGone(page); await sleep(2500); break; }
+          await page.keyboard.press('Escape'); await modalGone(page); await sleep(3000);
+        }
         await go(page, '#/playlists', '.pl-card'); await shot(page, 'ui2_playlists_list');
         await page.click(pl + ' a.pl-card-t'); await page.waitForSelector('.pl-items .pl-item', { timeout: 10000 }); await sleep(1500);
         const n = (await page.$$('.pl-items .pl-item')).length; say(n === 2, 'playlist "' + NAME + '" has 2 items (' + n + ')');
         const head = await page.$$eval('.pl-head .pl-bar > *', e => e.map(x => (x.textContent || '').trim() || x.getAttribute('aria-label'))); say(head.length === 3 && head[0] === 'Share' && head[1] === 'Apply template', 'header actions: ' + head.join(' | '));
         say(await noOverflow(page), 'no horizontal scroll on the playlist screen');
+        say(true, 'details html: ' + JSON.stringify(await page.$$eval('.pl-item .pl-det', e => e.map(x => x.innerHTML.replace(/<svg.*?<\/svg>/g, '').slice(0, 300)))));
         for (const li of await page.$$('.pl-item:not(.stale)')) {
           const r = await li.evaluate(e => ({ chips: new Set([...e.querySelectorAll('.po-chip')].map(c => Math.round(c.getBoundingClientRect().top))).size, nchip: e.querySelectorAll('.po-chip').length, grp: e.querySelectorAll('.vs-g').length, ctl: [...e.querySelectorAll('a[href],button,summary')].filter(x => !x.closest('.vsel,.po-ctl')).length + (e.querySelector('.vsel') ? 1 : 0) + 1, inside: [...e.querySelectorAll('.po-chip')].every(c => c.getBoundingClientRect().right <= e.getBoundingClientRect().right + 0.5), tit: e.querySelector('.pl-item-t').textContent, cap: [...e.querySelectorAll('.pl-det .pl-item-cap')].map(x => x.textContent) }));
           say(r.nchip === 5 && r.chips === 1 && r.inside, `item chips on one row (${r.nchip} chips, ${r.chips} row)`); say(r.ctl <= 6, `item controls: ${r.ctl}, version groups: ${r.grp}`);
           say(!r.cap.some(c => c.trim().toLowerCase().startsWith(r.tit.trim().toLowerCase())), 'description does not start with the title');
         }
-        await shot(page, 'ui2_playlist'); await page.screenshot({ path: path.join(OUT, PFX + 'ui2_playlist_full.png'), fullPage: true });
-        await menuOf('.pl-menu-b'); await shot(page, 'ui2_headmenu'); await page.keyboard.press('Escape'); await sleep(400);
-        await menuOf('.pl-item .pl-more'); await shot(page, 'ui2_itemmenu'); await page.keyboard.press('Escape'); await sleep(400);
+        await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove())); await shot(page, 'ui2_playlist'); await page.screenshot({ path: path.join(OUT, PFX + 'ui2_playlist_full.png'), fullPage: true });
+        await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
+        await menuOf('.pl-menu-b'); await sleep(700); await shot(page, 'ui2_headmenu'); await page.keyboard.press('Escape'); await sleep(400);
+        await menuOf('.pl-item .pl-more'); await sleep(700); await shot(page, 'ui2_itemmenu'); await page.keyboard.press('Escape'); await sleep(400);
         const det = await page.$('.pl-item .pl-det summary'); if (det) { await det.click(); await sleep(300); await page.evaluate(() => document.querySelector('.pl-item .pl-det').scrollIntoView({ block: 'center' })); await shot(page, 'ui2_item_details'); await det.click(); }
         // the player with the version toggle
         await page.evaluate(() => document.querySelector('.pl-item a.pl-thumbw').click()); await page.waitForSelector('dialog.drawer[open] .player', { timeout: 15000 }); await sleep(2500);

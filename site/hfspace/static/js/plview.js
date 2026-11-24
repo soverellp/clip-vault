@@ -185,14 +185,14 @@ function itemRow(p, it, i, n, ro) {
   }
   const meta = stale ? null : [c.dur ? dur(c.dur) : '', modes.length > 1 ? plural(modes.length, 'version') : ''].filter(Boolean).join(' · ');
   const det = !stale && (text || tags) ? h('details', { class: 'pl-det' }, h('summary', { text: 'Details' }), text ? h('p', { class: 'pl-item-cap', text }) : null, tags ? h('p', { class: 'pi-tags', text: tags }) : null) : null;
-  li.append(h('div', { class: 'pl-lead' }, handle, h('span', { class: 'pl-n', text: String(i + 1) })),
+  li.append(...[h('div', { class: 'pl-lead' }, handle, h('span', { class: 'pl-n', text: String(i + 1) })),
     stale ? h('div', { class: 'pl-thumbw' }, img) : h('a', { class: 'pl-thumbw', href: '#/clip/' + encodeURIComponent(c.id), 'aria-label': `Open ${cur ? cur.label : 'clip'}: item ${i + 1}` }, img),
     h('div', { class: 'pl-item-main' },
       h('p', { class: 'pl-item-t', text: stale ? 'No longer in the library' : (it.post.title || titleOf(c)) }),
       stale ? h('p', { class: 'muted', text: 'This clip was trashed or deleted. It is ignored in Copy all and CSV.' }) : (meta ? h('p', { class: 'muted pl-meta1', text: meta }) : null)),
     more,
     stale ? null : h('div', { class: 'pl-item-ctl' }, vs?.el, postedControl(c, { compact: true })),
-    det, w.length ? h('ul', { class: 'pl-warn small', 'aria-label': 'Warnings' }, ...w.map(x => h('li', { text: x }))) : null);
+    det, w.length ? h('ul', { class: 'pl-warn small', 'aria-label': 'Warnings' }, ...w.map(x => h('li', { text: x }))) : null].filter(Boolean));
   return li;
 }
 function titleBlock(p, ro) {

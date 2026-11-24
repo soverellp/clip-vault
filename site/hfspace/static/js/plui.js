@@ -96,12 +96,12 @@ on('clips', () => { for (const x of navs) { if (!x.a.isConnected && navs.size > 
 
 // ---- the post-ready block (Post info switch ON): post title, caption, hashtags, planned-platform badges, the Posted on chips (D53), Copy caption, Add to playlist
 export function postInfoBlock(c, { control = true, compact = true } = {}) {
-  const info = momentPost(c), p = info.post, rest = captionRest(p.title, p.caption);
+  const info = momentPost(c), p = info.post, rest = captionRest(p.title, p.caption), sameTitle = !!p.title && p.title.trim().replace(/\s+/g, ' ').toLowerCase() === titleOf(c).trim().replace(/\s+/g, ' ').toLowerCase();   // the card / the clip screen already shows this title
   const badges = [...info.platforms].map(k => h('span', { class: 'pi-badge', 'data-p': k, title: `Planned for ${PL_LABEL[k]}`, text: PL_LABEL[k] }));
   const addB = addControl(() => [momentKey(c)], () => titleOf(c), { short: true });
   // The caption is never shown twice: when it only repeats the title nothing is shown; Copy caption lives in the card "..." menu.
   return h('div', { class: 'pinfo', 'data-source': info.source },
-    h('p', { class: 'pi-title', text: p.title || '(no post title)' }),
+    sameTitle ? null : h('p', { class: 'pi-title', text: p.title || '(no post title)' }),
     rest ? h('p', { class: 'pi-cap', text: rest }) : (!p.title && !p.caption ? h('p', { class: 'pi-cap', text: '(no caption yet)' }) : null),
     p.hashtags.length ? h('p', { class: 'pi-tags', text: p.hashtags.join(' ') }) : null,
     badges.length ? h('div', { class: 'pi-badges', 'aria-label': 'Planned platforms' }, ...badges) : null,

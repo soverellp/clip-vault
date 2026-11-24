@@ -328,7 +328,7 @@ export const playlistLinkPath = id => '#/playlist/' + encodeURIComponent(id);
 // D54: a caption that starts with (or equals) the post title must not repeat it. -> the part of the caption after the title ('' when nothing new is left).
 export function captionRest(title, caption) {
   const t = String(title || '').trim(), c = String(caption || '').trim();
-  if (!c) return ''; if (!t) return c;
+  if (!c || /^(null|undefined)$/i.test(c)) return ''; if (!t) return c;
   let i = 0, j = 0;
   while (i < t.length && j < c.length) {
     if (/\s/.test(t[i])) { i++; continue; } if (/\s/.test(c[j])) { j++; continue; }
