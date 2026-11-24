@@ -47,7 +47,6 @@
 .pl-editor .pl-form textarea{min-height:120px}
 /* screens */
 .pl-view{padding:8px 0 90px}
-.pl-head{display:grid;gap:8px;margin:8px 0 14px}
 .pl-bar{display:flex;flex-wrap:wrap;gap:8px}
 .pl-list{display:grid;gap:12px;grid-template-columns:minmax(0,1fr)}
 @media (min-width:900px){.pl-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -64,19 +63,9 @@ a.pl-card-t:hover{text-decoration:underline}
 .pl-prog progress{flex:1;height:10px;accent-color:var(--ok)}
 .pl-prog-t{font-size:.85rem;color:var(--muted);}
 .pl-items{display:grid;gap:10px;padding:0;margin:0;list-style:none}
-.pl-item{display:grid;grid-template-columns:auto auto 64px 1fr;grid-template-areas:"h n t m" "a a a a";gap:8px 10px;align-items:start;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
-.pl-handle{grid-area:h;display:grid;place-items:center;width:28px;min-height:44px;color:var(--muted);cursor:grab}
-.pl-n{grid-area:n;min-width:24px;font-weight:700;color:var(--muted);padding-top:10px}
-.pl-thumbw{grid-area:t;width:64px;aspect-ratio:9/16;border-radius:10px;background:var(--panel-2);overflow:hidden}
 .pl-thumb{width:100%;height:100%;object-fit:cover;display:block}
-.pl-item-main{grid-area:m;display:grid;gap:4px;min-width:0}
-.pl-item-t{font-weight:650;overflow-wrap:anywhere}
-.pl-item-cap{color:var(--muted);font-size:.92rem;white-space:pre-line;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.pl-item-act{grid-area:a;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .pl-item.stale{opacity:.55;filter:grayscale(1)}
 .pl-item.dragging{opacity:.4}.pl-item.over{outline:2px dashed var(--a1)}
-@media (min-width:900px){.pl-item{grid-template-columns:auto auto 72px 1fr auto;grid-template-areas:"h n t m a"}.pl-item-act{justify-content:flex-end;max-width:360px}.pl-thumbw{width:72px}}
-.pl-pick .btn,.pl-item-act .btn{flex:none}
 .pl-card-main .pi-badge{justify-self:start}
 .pl-d-row{margin:0 0 10px}
 /* D51: title-bar Playlists button, split add button, add popup, versions, toast, mode toggle, share, stream menu */
@@ -103,15 +92,9 @@ a.pl-card-t:hover{text-decoration:underline}
 .pl-pick li{display:block}
 .pl-vers{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}
 .pl-vers-t{font-size:.86rem;color:var(--muted);font-weight:600;width:100%}
-.pl-vchip,.pl-mode{min-height:44px;padding:0 14px;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:600 .88rem var(--font);cursor:pointer}
-.pl-vchip[aria-pressed="true"],.pl-mode[aria-pressed="true"]{background:var(--a1);border-color:var(--a1);color:#fff}
-.pl-modes{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
-.pl-mode{min-height:44px;padding:0 12px;border-radius:12px}
 .pl-t .toast-msg{overflow-wrap:anywhere}
 .pl-t .toast-act{padding:0 10px}
-.pl-titlerow{display:flex;align-items:center;gap:6px}
 .pl-rename{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.pl-rename input{flex:1 1 220px;min-height:44px;font-size:1.1rem}
-.pl-card-act{display:grid;grid-template-columns:repeat(2,44px);gap:2px}
 .pl-sh-acts{display:flex;flex-wrap:wrap;gap:8px}
 .pl-share input{width:100%;min-height:44px}
 .pl-sh-hint{margin:0}
@@ -138,4 +121,70 @@ a.pl-card-t:hover{text-decoration:underline}
 .po-h{margin:0 0 6px;font-size:.9rem}
 .pm-po{flex:1;min-width:0}
 .pm-row.pm-posted{flex-wrap:wrap}
-.pl-item .po-ctl{margin-top:6px}
+
+/* ===== D54: main options visible, the rest in a "..." menu ===== */
+.pl-vchip{min-height:44px;padding:0 14px;border-radius:99px;border:1px solid var(--line);background:var(--panel);color:var(--text);font:600 .88rem var(--font);cursor:pointer}
+.pl-vchip[aria-pressed="true"]{background:var(--a1);border-color:var(--a1);color:#fff}
+.pl-pick .btn{flex:none}
+.pl-head{display:grid;gap:10px;margin:8px 0 14px}
+.pl-titlerow{display:flex;align-items:center;min-width:0}
+.pl-titlerow .page-title{margin:0;min-width:0;flex:1}
+.pl-title-b{display:inline-flex;align-items:center;gap:8px;max-width:100%;min-height:44px;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;border-radius:10px}
+.pl-title-b span{overflow-wrap:anywhere}
+.pl-title-b .ic{width:18px;height:18px;flex:none;color:var(--muted)}
+.pl-title-b:hover .ic,.pl-title-b:focus-visible .ic{color:var(--text)}
+.pl-title-b:focus-visible{outline:2px solid var(--a1);outline-offset:2px}
+.pl-sub1{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.pl-summary{font-size:.92rem}
+.pl-head>.pl-desc{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}
+.pl-bar.one{flex-wrap:nowrap;align-items:center}
+.pl-bar .btn{min-height:44px}
+.pl-bar.one .pl-apply,.pl-bar.one .pl-share{flex:1 1 0;min-width:0}
+.pl-bar.one .pl-menu-b{flex:none;width:44px;padding:0}
+.more-b{width:44px;min-width:44px;height:44px;padding:0;flex:none}
+.pl-card-act{display:flex;flex-direction:row;align-items:flex-start;gap:0}
+/* item: [number] [poster] [title + meta ...]  then versions, posted chips, details */
+.pl-items{gap:12px}
+.pl-item{display:grid;grid-template-columns:28px 84px minmax(0,1fr) 44px;grid-template-areas:"l t m x" "c c c c" "d d d d" "w w w w";gap:8px 10px;align-items:start;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--panel)}
+.pl-lead{grid-area:l;display:flex;flex-direction:column;align-items:center;gap:2px;padding-top:2px}
+.pl-handle{display:grid;place-items:center;width:28px;height:28px;color:var(--muted);cursor:grab}
+.pl-handle .ic{transform:rotate(90deg);width:18px;height:18px}
+@media (hover:none){.pl-handle{display:none}}
+.pl-n{font-weight:700;font-size:.86rem;color:var(--muted)}
+.pl-thumbw{grid-area:t;width:84px;aspect-ratio:9/16;border-radius:12px;background:var(--panel-2);overflow:hidden;display:block}
+.pl-thumb{width:100%;height:100%;object-fit:cover;display:block}
+.pl-item-main{grid-area:m;display:grid;gap:4px;min-width:0;align-content:start;padding-top:2px}
+.pl-item-t{font-weight:650;line-height:1.3;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin:0}
+.pl-meta1{margin:0;font-size:.84rem}
+.pl-item>.more-b{grid-area:x}
+.pl-item-ctl{grid-area:c;display:grid;gap:8px;min-width:0}
+.pl-det{grid-area:d;border-top:1px solid var(--line);padding-top:4px}
+.pl-det summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--muted);font-weight:600;font-size:.9rem}
+.pl-det summary:focus-visible{outline:2px solid var(--a1);outline-offset:2px;border-radius:8px}
+.pl-det p{margin:4px 0 8px}
+.pl-item-cap{color:var(--muted);font-size:.92rem;white-space:pre-line;overflow-wrap:anywhere}
+.pl-item>.pl-warn{grid-area:w}
+.pi-tags{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted)}
+@media (min-width:900px){
+  .pl-item{grid-template-columns:28px 96px minmax(0,1fr) minmax(0,1.2fr) 44px;grid-template-areas:"l t m c x" "l t d d d" "w w w w w"}
+  .pl-thumbw{width:96px}
+  .pl-item-ctl{align-self:start}
+}
+.pl-item.stale .pl-lead,.pl-item.stale .pl-item-main{opacity:1}
+/* version selector (player, Post mode, playlist item): two small segmented groups */
+.vsel{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;min-width:0}
+.vs-g{display:inline-flex;padding:2px;border-radius:99px;border:1px solid var(--line);background:var(--panel-2);min-width:0}
+.vs-b{min-height:44px;min-width:44px;padding:0 12px;border:0;border-radius:99px;background:transparent;color:var(--text);font:600 .84rem var(--font);cursor:pointer;white-space:nowrap}
+.vs-b[aria-pressed="true"]{background:var(--a1);color:#fff}
+.vs-b:disabled{opacity:.4;cursor:default}
+.vs-b:focus-visible{outline:2px solid var(--a1);outline-offset:1px}
+.vs-player{justify-content:center;padding:8px 0 2px}
+.vs-pm{margin:2px 0 6px}
+.vs-pm .vs-g{background:rgba(255,255,255,.08)}
+/* Posted on, compact: ONE row of five small chips, never wrapping */
+.po-ctl.compact .po-row{flex-wrap:nowrap;gap:6px}
+.po-ctl.compact .po-item{flex:1 1 0;min-width:0;max-width:64px}
+.po-ctl.compact .po-chip{width:100%;min-width:44px;padding:0 4px;font-size:.8rem;letter-spacing:.02em}
+.po-ctl.compact .po-chip.on{background:var(--ok);border-color:var(--ok);color:#fff}
+.po-ctl.compact .po-else{display:none}
+.pl-menu .modal-head h2{font-size:1rem}

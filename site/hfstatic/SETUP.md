@@ -5,11 +5,11 @@ Nobody gives Claude the dataset WRITE token. The admin pastes it in the browser 
 1. Create the Space by hand (2 min): https://huggingface.co/new-space -> owner `Soverellp`, name `clip-vault-site`, SDK **Static**, **Public**.
    (`deploy_static.py` also tries to create it; if Hugging Face refuses, this manual step is the fallback.)
 2. Check the two environment values (names only; never paste them in chat): `VAULT_READ_TOKEN` (read-only, this dataset only),
-   `VAULT_PASSPHRASE` (at least 4 DISTINCT random words, 20+ characters). `HF_Token` is the account token used only to upload the Space.
+   `VAULT_PASSPHRASE` (at least 4 DISTINCT random words, 20+ characters). `HF_Token` is the account token used to upload the Space AND (wrapper alias `VAULT_SHORTLIST_TOKEN`, child only) encrypted into `config.json` as the shortlist/playlist writer: a full deploy without it makes the site read-only for friends. All three come from Bitwarden through `with_bw_creds.py` (run from the repo root); a short accepted passphrase needs `--accept-weak-passphrase`. After the deploy: `python3 site/hfvault/with_bw_creds.py -- python3 site/hfstatic/check_live_config.py` and `... -- python3 site/hfstatic/probe_live_ui.py load` must say ok. Patch deploy (no passphrase change): `deploy_static.py --only js/x.js css/y.css index.html`.
 3. Dry run (1 min, uploads nothing):
-   `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfstatic/deploy_static.py --dry-run`
+   `python3 site/hfvault/with_bw_creds.py -- python3 site/hfstatic/deploy_static.py --dry-run`
 4. Deploy (2 min):
-   `python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfstatic/deploy_static.py`
+   `python3 site/hfvault/with_bw_creds.py -- python3 site/hfstatic/deploy_static.py`
 5. Open `https://soverellp-clip-vault-site.static.hf.space` (the direct address; the huggingface.co Space page shows it framed, and the
    page then asks you to open it directly). Type the passphrase.
 6. Admin (only when you must change something): click Admin, paste a fine-grained token that can write to `Soverellp/clip-vault` ONLY
