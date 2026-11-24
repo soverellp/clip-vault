@@ -11,14 +11,11 @@ import { announce, trapFocus, haptic } from './a11y.js';
 import { postedControl } from './postedui.js';
 import { postInfoBlock, addControl, playlistsNav, ensureCss } from './plui.js';
 import { momentKey } from './shortlist.js';
-import { combosOf, comboOf } from './playlists.js';
-import { writePlPref } from './viewpref.js';
 import { copyText, shareClip, chips, postedOf, toggleBtn, setNotes, PLATFORMS, NOTES_MAX, startPost, canShortlist, shortlisted, toggleShortlist, SHL_HINT } from './kit.js';
 import * as motion from './kit.js';
 import { editForm, peekDraft, peekDraft as takeDraftPeek } from './admin.js';
 
 let shlBtn = null, shlClip = null, shlHint = null;
-let swapped = null;   // { key, id }: the version the viewer switched to INSIDE the player (kept across live re-renders of this clip screen)
 let dlg = null, player = null, clipId = null, closing = false, livePost = null, opening = null;
 const BASE = new Set(['posted', 'notes', 'updated_at']);
 // Same clip apart from posting fields? Then repaint just those (the video keeps playing, scroll position stays).
@@ -129,18 +126,12 @@ function render(c) {
   if (player) { player.destroy(); player = null; }
   const acc = accentFor(c.id); dlg.style.setProperty('--ac-rgb', acc ? rgbVar(acc) : '139 123 255'); if (acc) setAurora(acc);
   if (!acc && c.poster) { const im = new Image(); im.onload = () => { const r = accentFromImage(im, c.id); if (r && clipId === c.id) { dlg.style.setProperty('--ac-rgb', rgbVar(r)); setAurora(r); } }; api.fetchMedia(c.poster, { trashed }).then(m => { im.src = m.url; }).catch(() => {}); }
-  let shown = c;
-  if (!trashed && swapped && swapped.key === momentKey(c)) shown = findClip(swapped.id) || c;
-  const vm = trashed ? null : combosOf(momentKey(c), state.clips);
-  player = createPlayer(shown, { trashed, versions: vm && vm.size > 1 ? { combos: [...vm.keys()], current: comboOf(shown), clipOf: k => vm.get(k), onPick: (k, nc) => {
-    shown = nc; swapped = { key: momentKey(c), id: nc.id }; const [v, t] = k.split('|'); state.variants.set(momentKey(c), { variant: v, teaser: t === '1' }); writePlPref({ mode: k });
-    dl.href = (nc.video && api.directMediaUrl(nc.video, { trashed })) || '#'; dl.download = String(nc.id || 'clip').replace(/[^\w.\-]/g, '_') + '.mp4'; announce(`${k.split('|')[1] === '1' ? 'Teaser' : 'No teaser'}, ${v.replace('-', ' ')} version`);
-  } } : null });
+  player = createPlayer(c, { trashed });
   const url = c.video ? api.directMediaUrl(c.video, { trashed }) : null;
   const dl = h('a', { class: 'btn primary', id: 'dl', href: url || (c.video ? '#' : undefined), download: String(c.id || 'clip').replace(/[^\w.\-]/g, '_') + '.mp4', 'aria-disabled': c.video ? undefined : 'true' }, icon('download'), h('span', { class: 'lbl', text: 'Download' })); dl.setAttribute('aria-label', 'Download clip');
   if (!url && c.video) dl.addEventListener('click', async e => {
     e.preventDefault(); const t = toast('Preparing download…', { timeout: 0 });
-    try { const m = await api.fetchMedia(shown.video, { trashed }); const a = h('a', { href: m.url, download: dl.download }); document.body.append(a); a.click(); a.remove(); setTimeout(() => m.revoke(), 30000); }
+    try { const m = await api.fetchMedia(c.video, { trashed }); const a = h('a', { href: m.url, download: dl.download }); document.body.append(a); a.click(); a.remove(); setTimeout(() => m.revoke(), 30000); }
     catch (err) { toast(api.errorText(err), { kind: 'error' }); } t.dismiss();
   });
   const actions = h('div', { class: 'actions' });
@@ -188,7 +179,7 @@ function render(c) {
     if (hadDraft) { form.hidden = false; info.hidden = true; actions.hidden = true; }
   }
   actions.hidden = !actions.children.length; head.append(info, form, actions);
-  const panel = h('div', { class: 'panel' }, head, ...(plRow ? [plRow] : []), ...(trashed ? [] : [state.postMode ? postInfoBlock(c, { compact: false }) : h('div', { class: 'po-panel' }, h('h3', { class: 'po-h', text: 'Posted on' }), postedControl(c))]), ...(trashed ? [] : [posting.el]), details(c, trashed), postKit(c));
+  const panel = h('div', { class: 'panel' }, head, ...(plRow ? [plRow] : []), ...(trashed ? [] : [state.postMode ? postInfoBlock(c) : h('div', { class: 'po-panel' }, h('h3', { class: 'po-h', text: 'Posted on' }), postedControl(c))]), ...(trashed ? [] : [posting.el]), details(c, trashed), postKit(c));
   body.append(h('div', { class: 'drawer-grid' }, h('div', { class: 'stage' }, player.el), panel), dbar);
   dlg.querySelector('.drawer-scroll').scrollTop = 0;
 }
@@ -200,7 +191,7 @@ export function open(id) {
   if (dlg.open && clipId === id && rendered === c && !closing) return true;
   if (opening === id) return true;
   const show = vt => {
-    opening = null; if (clipId !== id) swapped = null; clipId = id; closing = false;
+    opening = null; clipId = id; closing = false;
     render(c);
     if (!dlg.open) {
       dlg.classList.toggle('vt', !!vt); dlg.showModal(); document.body.classList.add('locked');

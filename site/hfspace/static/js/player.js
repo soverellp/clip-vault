@@ -2,14 +2,11 @@ import { h, btn, icon, setIcon } from './dom.js';
 import * as api from './api.js';
 import { state } from './state.js';
 import { toast } from './toast.js';
-import { versionSelect } from './vsel.js';
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const mmss = s => { s = Math.max(0, Math.floor(s || 0)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
 
-// versions (optional) = { combos: [key...], current: key, clipOf: key => clip, onPick: (key, clip, how) => void }: a compact version toggle INSIDE the player (under the phone).
-// Switching keeps the playback position and the play/pause state.
-export function createPlayer(clip, { trashed = false, versions = null } = {}) {
+export function createPlayer(clip, { trashed = false } = {}) {
   const mediaRefs = [];
   const video = h('video', { playsinline: '', preload: 'metadata', 'aria-label': 'Clip video', disablepictureinpicture: undefined });
   const bigPlay = h('button', { type: 'button', class: 'bigplay', 'aria-label': 'Play' }, icon('play'));
@@ -32,8 +29,7 @@ export function createPlayer(clip, { trashed = false, versions = null } = {}) {
   bPip.hidden = !document.pictureInPictureEnabled;
   const bFs = btn('', { ic: 'maximize', cls: 'icon', aria: 'Fullscreen', kind: 'ghost', title: 'Fullscreen (F)' });
   const controls = h('div', { class: 'controls' }, h('div', { class: 'seek-row' }, seek, time), h('div', { class: 'btn-row' }, bPlay, bMute, bSpeed, h('span', { class: 'grow' }), bSafe, bPip, bFs));
-  const vs = versions && versions.combos.length > 1 ? versionSelect({ combos: versions.combos, current: versions.current, cls: 'vs-player', aria: 'Version of this clip', onPick: (k, how) => swap(versions.clipOf(k), k, how) }) : null;
-  const root = h('div', { class: 'player' }, phone, viz, ...(vs ? [vs.el] : []), controls);
+  const root = h('div', { class: 'player' }, phone, viz, controls);
 
   let speedI = 2, dragging = false;
   const dur = () => (Number.isFinite(video.duration) ? video.duration : 0);
@@ -118,25 +114,16 @@ export function createPlayer(clip, { trashed = false, versions = null } = {}) {
     else return;
     e.preventDefault();
   }
-  let gone = false, loadId = 0, shown = clip, vref = null;
-  function load(c, resume) {
-    const id = ++loadId; msg.hidden = true; shown = c;
-    if (c.poster) { const pu = api.directMediaUrl(c.poster, { trashed }); if (pu) video.poster = pu; else api.fetchMedia(c.poster, { trashed }).then(m => { if (gone || id !== loadId) { m.revoke(); return; } mediaRefs.push(m); video.poster = m.url; }).catch(() => {}); }
-    if (c.video) {
-      api.fetchMedia(c.video, { trashed, onProgress: ({ loaded, total }) => { if (id !== loadId) return; vprog.hidden = false; vprog.textContent = total ? `Loading ${Math.round((loaded / total) * 100)}%` : 'Loading…'; } })
-        .then(m => {
-          if (gone || id !== loadId) { m.revoke(); return; }
-          vprog.hidden = true; const t = video.currentTime || 0, was = !video.paused, old = vref; vref = m; mediaRefs.push(m); video.src = m.url; if (old) { old.revoke(); const i = mediaRefs.indexOf(old); if (i >= 0) mediaRefs.splice(i, 1); }
-          if (resume) video.addEventListener('loadedmetadata', () => { try { video.currentTime = Math.min(t, Math.max(0, (video.duration || t) - 0.05)); } catch { /* ignore */ } if (was) video.play().catch(() => {}); }, { once: true });
-        })
-        .catch(e => { if (id !== loadId) return; vprog.hidden = true; msg.hidden = false; msg.textContent = e?.status === 404 ? 'This clip has no video file.' : api.errorText(e); });
-    } else { vprog.hidden = true; msg.hidden = false; msg.textContent = 'This clip has no video file.'; }
-  }
-  function swap(c, k, how) { if (!c || c === shown) return; load(c, true); versions?.onPick?.(k, c, how); }
-  load(clip, false);
+  if (clip.poster) { const pu = api.directMediaUrl(clip.poster, { trashed }); if (pu) video.poster = pu; else api.fetchMedia(clip.poster, { trashed }).then(m => { mediaRefs.push(m); video.poster = m.url; }).catch(() => {}); }
+  let gone = false;
+  if (clip.video) {
+    api.fetchMedia(clip.video, { trashed, onProgress: ({ loaded, total }) => { vprog.hidden = false; vprog.textContent = total ? `Loading ${Math.round((loaded / total) * 100)}%` : 'Loading…'; } })
+      .then(m => { vprog.hidden = true; if (gone) { m.revoke(); return; } mediaRefs.push(m); video.src = m.url; })
+      .catch(e => { vprog.hidden = true; msg.hidden = false; msg.textContent = e?.status === 404 ? 'This clip has no video file.' : api.errorText(e); });
+  } else { msg.hidden = false; msg.textContent = 'This clip has no video file.'; }
   sync();
   return {
-    el: root, video, key, versionEl: vs?.el || null, get clip() { return shown; },
-    destroy() { gone = true; loadId++; for (const m of mediaRefs) m.revoke(); stopViz(); try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ } try { ctx?.close(); } catch { /* ignore */ } },
+    el: root, video, key,
+    destroy() { gone = true; for (const m of mediaRefs) m.revoke(); stopViz(); try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* ignore */ } try { ctx?.close(); } catch { /* ignore */ } },
   };
 }

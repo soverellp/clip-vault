@@ -2,16 +2,16 @@
 
 > **TL;DR** Do-this-now steps. CURRENT plan = static mode (sections 1-8); server mode steps are in the SAVED OPTION part at the end. Commands run from the clipper repo root (paths in [ARCHITECTURE.md](ARCHITECTURE.md) "Code locations"). Never paste a token value or the gate password. `site/hfstatic` is IN PROGRESS: steps that depend on it are marked and will name exact commands once its README exists.
 
-Secrets policy (D29): Claude/deploy credentials live in Bitwarden and reach a command only through `site/hfvault/with_bw_creds.py` (the Kaggle key dataset route is retired; the environment holds just the 3 `BW_*` variables). Static mode has no Space secrets. Keep a password-manager master copy of every token and the gate password.
+Secrets policy (D29): Claude/deploy credentials stay in Claude environment variables (preferred) or, until retired, `arvr7plays/kagglegpu1` via the wrapper. Static mode has no Space secrets. Keep a password-manager master copy of every token and the gate password.
 
 ## 1. Upload clips (about 10 min; same in both modes)
-1. Prereqs: `kaggle` CLI in `~/kvenv` (with `six`, `python-slugify`), `pip install numpy pillow huggingface_hub cryptography` (all done by `bash migration-setup/setup-environment.sh`; `pdftotext` is no longer needed). Verify after any deploy: `check_live_config.py` and `probe_live_ui.py load` (migration-setup/CLIP-VAULT.md, CURRENT STATE).
+1. Prereqs: `kaggle` CLI in `~/kvenv` (with `six`, `python-slugify`), `pdftotext` (`apt-get install -y poppler-utils`), `pip install huggingface_hub cryptography`.
 2. `python3 site/hfvault/with_bw_creds.py -- python3 site/hfvault/build_hfvault.py <scratch>/vault Soverellp/clip-vault --upload` (`--stream <date>` filters).
 3. Verify names/sizes only: list `clips/` in the dataset; expect one `.mp4` and one `.jpg` per clip.
 4. Timeout: retry up to 4 times (uploaded files are skipped), then by stream, then STOP and tell the user; never lower quality.
 
 ## 2. Deploy the static page (about 10 minutes) [needs `site/hfstatic`, IN PROGRESS]
-1. Prepare (the user): the gate password (short human password the user chose and accepted the risk for; never typed into chat) and a read token. For now the existing read token (Bitwarden note `Hugging Face Clip Vault Token (SovereLLP)`, variable `VAULT_READ_TOKEN`) is reused; a dedicated revocable read-only token for this dataset only is better (D26).
+1. Prepare (the user): the gate password (short human password the user chose and accepted the risk for; never typed into chat) and a read token. For now the existing read token (line `Clip_vault_HFToken` in the credential file, variable `VAULT_READ_TOKEN`) is reused; a dedicated revocable read-only token for this dataset only is better (D26).
 2. Build the public config and page with the builder in `site/hfstatic` (command and flags: see its README when present). A short human password needs the explicit flag `--accept-weak-passphrase`, which is off by default and records the acceptance.
 3. Upload the built files to the Static Space `Soverellp/clip-vault-site` (already created empty and public, D24) with the HF write token (`HF_Token`, via the wrapper). Upload ONLY the page and its public config; the Space repo is public.
 4. Test per [../migration-setup/VERIFY.md](../migration-setup/VERIFY.md) (clip vault checklist): Space URL opens, wrong password rejected, right one shows the grid, clip plays and downloads, times local, nothing in browser storage, admin paste works, delete asks the typed title.

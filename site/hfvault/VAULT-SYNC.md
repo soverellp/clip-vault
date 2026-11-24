@@ -1,12 +1,12 @@
 # vault_sync: finished clips -> the private clip vault
 
 GitHub `main` keeps the clips (via `finalise.py`). `vault_sync.py` ALSO copies them to the PRIVATE Hugging Face dataset
-`Soverellp/clip-vault` (Option A). Credentials come from Bitwarden: prefix every command with `python3 site/hfvault/with_bw_creds.py --only HF_Token --` (run from the repo root) and add `--allow-account-token` (owner approval D38; without it: "refusing the account-wide HF_Token").
+`Soverellp/clip-vault` (Option A). One command, no wrapper prefix, credentials built in.
 
 ## Usage
 ```
-python3 site/hfvault/with_bw_creds.py --only HF_Token -- python3 site/hfvault/vault_sync.py --allow-account-token [--stream SUBSTR] [--limit N]         # DRY RUN (default): table + the exact --yes command
-(same prefix) python3 site/hfvault/vault_sync.py --allow-account-token [--stream SUBSTR] [--limit N] --yes   # upload
+python3 site/hfvault/vault_sync.py [--stream SUBSTR] [--limit N]         # DRY RUN (default): table + the exact --yes command
+python3 site/hfvault/vault_sync.py [--stream SUBSTR] [--limit N] --yes   # upload
 ```
 `finalise.py --yes` prints the dry-run command as its last line. Flags: `--stream` (folder name contains), `--limit N` (at most N
 clips; the rest show as DEFERRED), `--hf-dataset OWNER/NAME` (default `Soverellp/clip-vault`), `--dataset USER/NAME` (the KAGGLE
@@ -61,8 +61,11 @@ into NEW entries and prints the hint to run `--meta-only` once for `streams[]` a
 - Never deletes anything. After the last commit it lists the dataset and compares sizes of every uploaded file (verify).
 
 ## Credential flow
-1. `VAULT_WRITE_TOKEN` in the environment (else `HF_Token` / `HF_TOKEN`, only with `--allow-account-token`): used as is. The wrapper (`with_bw_creds.py`) supplies them from the Bitwarden note `Hugging Face Token 1 (SovereLLP)`; `--only HF_Token` gives only `HF_Token`, hence the flag.
-2. LEGACY, retired (do not use; a 403 there only means the Kaggle login does not own the old key dataset): `with_vault_creds.load_credentials()` read a Kaggle credential dataset through the Kaggle CLI. It is the last fallback when neither variable exists.
+1. `VAULT_WRITE_TOKEN` in the environment (else `HF_Token` / `HF_TOKEN`, only with `--allow-account-token`): used as is, NO Kaggle download.
+2. Else `with_vault_creds.load_credentials()` downloads `arvr7plays/kagglegpu1` to a private `/dev/shm` temp folder, parses it in memory
+   (PDF via `pdftotext`), deletes the folder (also on Ctrl-C, SIGTERM, SIGHUP). Needs `KAGGLE_USERNAME` + `KAGGLE_APITOKEN` and the
+   Kaggle CLI (`~/kvenv/bin/kaggle`). Preferred file keys: `VAULT_WRITE_TOKEN` or `Clip_vault_Write` (dataset-scoped). Fallback
+   `HF_Tokem` / `HF_Token` is REFUSED unless `--allow-account-token` is passed (then it prints `WARNING: account-wide token allowed ...`).
 3. The token goes only into `HfApi(token=...)` / `hf_hub_download(token=...)` in this process. Never into `os.environ`, argv, a file or
    a child process (the only children are `ffprobe`, and the Kaggle CLI which gets the Kaggle token as the existing `fetch` always did).
 4. A write token equal to the read token (`VAULT_READ_TOKEN`) is refused. A token that is not `hf_...` is refused.

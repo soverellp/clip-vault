@@ -6,8 +6,6 @@
 //             console/page errors, 404s, horizontal scroll, broken images
 //   posted    'Posted on' chips (D53): toggle YouTube ON on a real moment (phone width), check it persists after a reload and shows in the
 //             Library 'Posted on' filter, toggle it OFF again and check it is gone after another reload; screenshots posted_*.png
-//   playlistui D54: throwaway playlist 'zz ui' with 2 real clips; phone screenshots of the playlist screen, the header ... menu, an item menu, the player with the version toggle (switched once), a Post info card;
-//             header/item/chips/no-repeat checks; the playlist is removed at the end (PROBE_SCHEME=light for the light theme)
 //   roundtrip add a clip to a throwaway playlist 'zz probe', remove it, DELETE the playlist again (needs the saving key in config.json)
 const { chromium } = require('playwright');
 const path = require('path'), fs = require('fs'), os = require('os');
@@ -22,7 +20,7 @@ let bad = 0; const say = (c, m) => { if (!c) bad++; console.log((c ? 'ok ' : 'FA
   const browser = await chromium.launch();
   const errs = [], notFound = [];
   async function open(width, height) {
-    const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1, colorScheme: process.env.PROBE_SCHEME || 'dark' });
+    const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 1 });
     const page = await ctx.newPage();
     page.on('pageerror', e => errs.push('pageerror ' + clean(e)));
     page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push('console ' + clean(m.text())); });
@@ -119,67 +117,8 @@ let bad = 0; const say = (c, m) => { if (!c) bad++; console.log((c ? 'ok ' : 'FA
     } else if (MODE === 'cleanup') {
       const { ctx, page } = await open(1280, 800); await go(page, '#/playlists', '.pl-bar'); await sleep(1500);
       for (let i = 0; i < 5; i++) { const card = '.pl-card:has-text("zz probe")'; if (!(await page.$(card))) break;
-        await page.click(card + ' .pl-more'); await page.waitForSelector('dialog.sheet[open].shown'); await page.click('dialog.sheet[open] [data-act="delete"]'); await modal(page); await page.click('dialog.pl-modal[open] .modal-foot button:has-text("Delete")'); await modalGone(page); await sleep(2500); }
+        await page.click(card + ' button[aria-label^="Delete"]'); await modal(page); await page.click('dialog.pl-modal[open] .modal-foot button:has-text("Delete")'); await modalGone(page); await sleep(2500); }
       say(!(await page.$('.pl-card:has-text("zz probe")')), 'no "zz probe" playlist left'); await ctx.close();
-    } else if (MODE === 'playlistui') {
-      const { page } = await open(390, 844); await sleep(800);
-      for (let fi = 0, nf = (await page.$$('.folder a')).length; fi < nf; fi++) {   // the first folder that has at least two moments
-        await page.$$eval('.folder a', (a, i) => a[i].click(), fi); await page.waitForSelector('ul.grid.moments li.card:not(.sk)', { timeout: 30000 }).catch(() => {}); await page.click('.cat[data-cat="all"]').catch(() => {}); await sleep(1500);
-        if ((await page.$$('ul.grid.moments li.card:not(.sk)')).length >= 2) break;
-        await go(page, '#/', '.folder'); await sleep(600);
-      }
-      await setPostInfo(page, true);
-      const NAME = 'zz ui', pl = '.pl-card:has-text("' + NAME + '")';
-      const menuOf = async (opener, act) => { await page.click(opener); await page.waitForSelector('dialog.sheet[open].shown'); if (act) { await page.click(`dialog.sheet[open] [data-act="${act}"]`); await sleep(400); } };
-      try {
-        // a Post info card first (the library is on screen)
-        const o = await overlaps(page); say(o.bad.length === 0, `${o.n} cards, no overlapping rects` + (o.bad.length ? ' ' + JSON.stringify(o.bad) : ''));
-        const nctl = await page.$$eval('ul.grid.moments li.card:not(.sk)', cs => cs.slice(0, 8).map(li => li.querySelectorAll('.shl:not([hidden]), .card-more, .vpill:not([hidden]), .tpill:not([hidden]), .po-ctl, .pl-split').length)); say(nctl.every(n => n <= 6), 'cards show at most 6 control groups ' + nctl.join(','));
-        await page.evaluate(() => document.querySelector('ul.grid.moments li.card:not(.sk)').scrollIntoView({ block: 'start' })); await sleep(500); await shot(page, 'ui2_card_postinfo');
-        // create the playlist with the first two moments
-        await page.click('li.card:not(.sk) .pi-add-more'); await modal(page);
-        say(!/read-only/i.test(await page.textContent('dialog.pl-modal[open] .modal-body')), 'add popup is not read-only');
-        await page.fill('#pl-new-name', NAME); await page.click('dialog.pl-modal[open] .pl-create-b'); await sleep(400); await page.click('dialog.pl-modal[open] .pl-save'); await modalGone(page); await sleep(1500);
-        await page.evaluate(() => document.querySelectorAll('ul.grid.moments li.card:not(.sk)')[1].scrollIntoView({ block: 'center' })); await sleep(300);
-        for (let at = 0; at < 6; at++) {   // add the second moment through the popup (the playlist can take a few seconds to show up after the first save)
-          await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove())); await page.$eval('ul.grid.moments li.card:not(.sk):nth-of-type(2) .pi-add-more', e => e.click()); await modal(page); await sleep(600);
-          const row = await page.$('dialog.pl-modal[open] label.pl-pick-row:has-text("zz ui") input:not([disabled])');
-          if (row) { await row.click(); await page.click('dialog.pl-modal[open] .pl-save'); await modalGone(page); await sleep(2500); break; }
-          await page.keyboard.press('Escape'); await modalGone(page); await sleep(3000);
-        }
-        await go(page, '#/playlists', '.pl-card'); await shot(page, 'ui2_playlists_list');
-        await page.click(pl + ' a.pl-card-t'); await page.waitForSelector('.pl-items .pl-item', { timeout: 10000 }); await sleep(1500);
-        const n = (await page.$$('.pl-items .pl-item')).length; say(n === 2, 'playlist "' + NAME + '" has 2 items (' + n + ')');
-        const head = await page.$$eval('.pl-head .pl-bar > *', e => e.map(x => (x.textContent || '').trim() || x.getAttribute('aria-label'))); say(head.length === 3 && head[0] === 'Share' && head[1] === 'Apply template', 'header actions: ' + head.join(' | '));
-        say(await noOverflow(page), 'no horizontal scroll on the playlist screen');
-        say(true, 'details html: ' + JSON.stringify(await page.$$eval('.pl-item .pl-det', e => e.map(x => x.innerHTML.replace(/<svg.*?<\/svg>/g, '').slice(0, 300)))));
-        for (const li of await page.$$('.pl-item:not(.stale)')) {
-          const r = await li.evaluate(e => ({ chips: new Set([...e.querySelectorAll('.po-chip')].map(c => Math.round(c.getBoundingClientRect().top))).size, nchip: e.querySelectorAll('.po-chip').length, grp: e.querySelectorAll('.vs-g').length, ctl: [...e.querySelectorAll('a[href],button,summary')].filter(x => !x.closest('.vsel,.po-ctl')).length + (e.querySelector('.vsel') ? 1 : 0) + 1, inside: [...e.querySelectorAll('.po-chip')].every(c => c.getBoundingClientRect().right <= e.getBoundingClientRect().right + 0.5), tit: e.querySelector('.pl-item-t').textContent, cap: [...e.querySelectorAll('.pl-det .pl-item-cap')].map(x => x.textContent) }));
-          say(r.nchip === 5 && r.chips === 1 && r.inside, `item chips on one row (${r.nchip} chips, ${r.chips} row)`); say(r.ctl <= 6, `item controls: ${r.ctl}, version groups: ${r.grp}`);
-          say(!r.cap.some(c => c.trim().toLowerCase().startsWith(r.tit.trim().toLowerCase())), 'description does not start with the title');
-        }
-        await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove())); await shot(page, 'ui2_playlist'); await page.screenshot({ path: path.join(OUT, PFX + 'ui2_playlist_full.png'), fullPage: true });
-        await page.evaluate(() => document.querySelectorAll('.toast').forEach(t => t.remove()));
-        await menuOf('.pl-menu-b'); await sleep(700); await shot(page, 'ui2_headmenu'); await page.keyboard.press('Escape'); await sleep(400);
-        await menuOf('.pl-item .pl-more'); await sleep(700); await shot(page, 'ui2_itemmenu'); await page.keyboard.press('Escape'); await sleep(400);
-        const det = await page.$('.pl-item .pl-det summary'); if (det) { await det.click(); await sleep(300); await page.evaluate(() => document.querySelector('.pl-item .pl-det').scrollIntoView({ block: 'center' })); await shot(page, 'ui2_item_details'); await det.click(); }
-        // the player with the version toggle
-        await page.evaluate(() => document.querySelector('.pl-item a.pl-thumbw').click()); await page.waitForSelector('dialog.drawer[open] .player', { timeout: 15000 }); await sleep(2500);
-        const has = await page.$('.player .vsel');
-        if (has) {
-          const nb = (await page.$$('.player .vs-b')).length; say(nb >= 2, 'player has the version toggle (' + nb + ' buttons)');
-          await page.click('.player .bigplay').catch(() => {}); await sleep(2500);
-          const t0 = await page.$eval('.player video', v => v.currentTime);
-          const off = await page.$('.player .vs-b[aria-pressed="false"]:not([disabled])');
-          if (off) { const lab = await off.getAttribute('aria-label'); await off.click(); await sleep(6000); say((await page.getAttribute('.player .vs-b[aria-label="' + lab + '"]', 'aria-pressed')) === 'true', 'switched to "' + lab + '" in the player'); const t1 = await page.$eval('.player video', v => v.currentTime); say(t1 >= t0 - 0.5, `position kept ${t0.toFixed(1)}s -> ${t1.toFixed(1)}s`); }
-          await shot(page, 'ui2_player'); say(await noOverflow(page), 'no horizontal scroll in the clip screen');
-        } else say(false, 'player has no version toggle (clip has one version only?)');
-        await page.click('.drawer-close').catch(() => {}); await sleep(600);
-      } finally {
-        await go(page, '#/playlists', '.pl-card').catch(() => {});
-        for (let i = 0; i < 3; i++) { if (!(await page.$(pl))) break; await menuOf(pl + ' .pl-more', 'delete'); await modal(page); await page.click('dialog.pl-modal[open] .modal-foot button:has-text("Delete")'); await modalGone(page); await sleep(3000); }
-        say(!(await page.$(pl)), 'throwaway playlist removed again (dataset ends as it began)');
-      }
     } else if (MODE === 'roundtrip') {
       const { ctx, page } = await open(390, 844); await openFolder(page);
       const NAME = 'zz probe';
@@ -193,9 +132,9 @@ let bad = 0; const say = (c, m) => { if (!c) bad++; console.log((c ? 'ok ' : 'FA
       await go(page, '#/playlists', '.pl-card'); const card = `.pl-card:has-text("${NAME}")`;
       say(!!(await page.$(card)), 'playlist "zz probe" exists on the Playlists screen');
       await page.click(card + ' a.pl-card-t'); await page.waitForSelector('.pl-items .pl-item', { timeout: 10000 }); say(true, 'playlist has the added clip');
-      await page.click('.pl-items .pl-item .pl-more'); await page.waitForSelector('dialog.sheet[open].shown'); await page.click('dialog.sheet[open] [data-act="remove"]'); await sleep(1500);
+      await page.click('.pl-items .pl-item .pl-rm'); await sleep(1500);
       say(!(await page.$('.pl-items .pl-item')), 'clip removed from the playlist');
-      await go(page, '#/playlists', '.pl-card'); await page.click(card + ' .pl-more'); await page.waitForSelector('dialog.sheet[open].shown'); await page.click('dialog.sheet[open] [data-act="delete"]'); await modal(page);
+      await go(page, '#/playlists', '.pl-card'); await page.click(card + ' button[aria-label^="Delete"]'); await modal(page);
       await page.click('dialog.pl-modal[open] .modal-foot button:has-text("Delete")'); await modalGone(page); await sleep(3000);
       say(!(await page.$(card)), 'throwaway playlist deleted again');
       await ctx.close();

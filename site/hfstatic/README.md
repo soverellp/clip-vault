@@ -77,7 +77,7 @@ rebuild `config.json` with a new token and a new passphrase and redeploy.
 ## Build and deploy
 
 See `SETUP.md`. Short version:
-`python3 site/hfvault/with_bw_creds.py -- python3 site/hfstatic/deploy_static.py`
+`python3 site/hfvault/with_vault_creds.py --dataset arvr7plays/kagglegpu1 -- python3 site/hfstatic/deploy_static.py`
 
 Tests (see STATUS.md for the latest counts; 106+ Playwright assertions): `python3 -m pytest site/hfstatic/tests/test_build.py` and
 `NODE_PATH=/opt/node22/lib/node_modules PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers node site/hfstatic/tests/test_static.js`
