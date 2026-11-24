@@ -78,6 +78,13 @@ export const audit = () => get('/api/audit');
 // Shortlist (static mode only: _config/shortlist.json in the dataset). Server mode has none: an empty read-only list.
 export const listShortlist = async () => ({ ids: [], can_write: false });
 export const setShortlist = async () => { throw new ApiError(400, { error: 'unsupported', message: 'The shortlist is not available in server mode.' }); };
+// Playlists and templates (static mode only, D47). Server mode has none: empty read-only documents.
+export const listPlaylists = async () => ({ doc: { version: 1, playlists: [] }, exists: false, can_write: false });
+export const updatePlaylists = async () => { throw new ApiError(400, { error: 'unsupported', message: 'Playlists are not available in server mode.' }); };
+export const listPosted = async () => ({ doc: { version: 1, posted: {} }, exists: false, can_write: false });
+export const updatePosted = async () => { throw new ApiError(400, { error: 'unsupported', message: 'Posted marks are not available in server mode.' }); };
+export const listTemplates = async () => ({ doc: { version: 1, templates: [] }, exists: false, can_write: false });
+export const updateTemplates = async () => { throw new ApiError(400, { error: 'unsupported', message: 'Templates are not available in server mode.' }); };
 
 // multipart upload with progress. onProgress({loaded,total}); signal aborts (rejects with AbortError). Resolves with the JSON body (201).
 export function uploadClip(form, { onProgress, signal } = {}) {

@@ -61,8 +61,9 @@ const server = http.createServer((q, r) => {
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch();
 
-  async function session(hub) {
+  async function session(hub, o = {}) {
     const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true });
+    if (!o.feedOn) await ctx.addInitScript(() => { try { localStorage.setItem('cv.feed', '0'); } catch (e) {} }); // Post mode opens by itself on first load (D49): these tests browse the grid
     await ctx.route('https://huggingface.co/**', r => hub.handle(r));
     await ctx.route(/^https:\/\/([\w-]+\.)+hf\.co\//, r => hub.handle(r));
     const page = await ctx.newPage(), viol = [], logs = [], revoked = [];
@@ -135,7 +136,7 @@ const server = http.createServer((q, r) => {
       const dlBytes = fs.readFileSync(await dl.path());
       ok(sha(dlBytes) === sha(fs.readFileSync(VID.a1)), 'downloaded bytes equal the stored clip');
       // nothing persisted anywhere
-      const store = await page.evaluate(async () => ({ keys: Object.keys(localStorage), val: localStorage.getItem('cv.pass'), ls: localStorage.length, ss: sessionStorage.length, ck: document.cookie, idb: (await indexedDB.databases?.())?.length ?? 0, caches: (await caches.keys()).length, sw: (await navigator.serviceWorker.getRegistrations()).length }));
+      const store = await page.evaluate(async () => ({ keys: Object.keys(localStorage).filter(k => k !== 'cv.feed'), val: localStorage.getItem('cv.pass'), ls: Object.keys(localStorage).filter(k => k !== 'cv.feed').length, ss: sessionStorage.length, ck: document.cookie, idb: (await indexedDB.databases?.())?.length ?? 0, caches: (await caches.keys()).length, sw: (await navigator.serviceWorker.getRegistrations()).length }));
       ok(store.ls === 1 && store.keys[0] === 'cv.pass' && store.val === PASS && store.ss === 0 && store.ck === '' && store.idb === 0 && store.caches === 0 && store.sw === 0, 'only the remembered passphrase (key cv.pass) is in localStorage; nothing in sessionStorage/cookies/IndexedDB/Cache Storage/service workers ' + JSON.stringify(store));
       ok((await ctx.cookies()).length === 0, 'no cookies in the browser context');
       const html = await page.evaluate(() => document.documentElement.outerHTML + [...document.querySelectorAll('input,textarea')].map(i => i.value).join('|') + location.href);
@@ -229,7 +230,7 @@ const server = http.createServer((q, r) => {
       ok(hub.whoamiCalls.includes(WRITE), 'token verified through whoami-v2 with the pasted token');
       const dom = await page.evaluate(() => document.documentElement.outerHTML + [...document.querySelectorAll('input')].map(i => i.value + i.getAttribute('value')).join('|') + location.href);
       ok(!dom.includes(WRITE) && !logs.join('\n').includes(WRITE), 'write token is not in DOM, attributes, URL or console');
-      const st = await page.evaluate(async () => ({ ls: localStorage.length, ss: sessionStorage.length, ck: document.cookie, idb: (await indexedDB.databases?.())?.length ?? 0 }));
+      const st = await page.evaluate(async () => ({ ls: Object.keys(localStorage).filter(k => k !== 'cv.feed').length, ss: sessionStorage.length, ck: document.cookie, idb: (await indexedDB.databases?.())?.length ?? 0 }));
       ok(st.ls === 0 && st.ss === 0 && st.ck === '' && st.idb === 0, 'write token not persisted in any storage');
       ok(await page.$('#upload-btn:not([hidden])') !== null && await page.$('a.tab[data-view=trash]') !== null && await page.$('a.tab[data-view=audit]') !== null && await page.$('a.tab[data-view=users]') === null, 'admin sees Upload, Trash, Audit; the People tab stays hidden');
       const me = await page.evaluate(() => import('/js/api.js').then(a => a.me()));
@@ -400,7 +401,7 @@ const server = http.createServer((q, r) => {
 
     // ============================ REMEMBER ON THIS DEVICE
     {
-      const stor = p => p.evaluate(() => ({ keys: Object.keys(localStorage), v: localStorage.getItem('cv.pass'), ss: sessionStorage.length }));
+      const stor = p => p.evaluate(() => ({ keys: Object.keys(localStorage).filter(k => k !== 'cv.feed'), v: localStorage.getItem('cv.pass'), ss: sessionStorage.length }));
       // remember ON (default): stored after a successful unlock only
       let hub = newHub(); let S = await session(hub); let page = S.page;
       await page.goto(base + '/'); await page.waitForSelector('#signin:not([hidden]) #remember-cb');
@@ -466,8 +467,9 @@ const server = http.createServer((q, r) => {
       const dist = fs.readdirSync(path.join(DIST, 'js')).map(f => [f, fs.readFileSync(path.join(DIST, 'js', f), 'utf8')]);
       const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\w'"`])\/\/.*$/gm, '$1');
       const rm = s => s.replace(/localStorage\.(getItem\(PASS_KEY\)|setItem\(PASS_KEY, v\)|removeItem\(PASS_KEY\))/g, '');
+      const rmPm = s => s.replace(/localStorage\.(getItem\((PM_KEY|FEED_KEY)\)|setItem\((PM_KEY|FEED_KEY), on \? '1' : '0'\))/g, '');   // D47: the Post info switch, viewpref.js only
       const bad = /localStorage|sessionStorage|indexedDB|document\.cookie|\beval\s*\(|new Function|innerHTML|outerHTML|insertAdjacentHTML|document\.write|serviceWorker|setAttribute\(\s*['"]style['"]|cssText/;
-      ok(dist.every(([f, s]) => !bad.test(strip(f === 'hubchrome.js' ? rm(s) : s))), 'forbidden DOM/storage APIs: none in any dist js file except the three cv.pass calls in hubchrome.js (' + dist.length + ' files)');
+      ok(dist.every(([f, s]) => !bad.test(strip(f === 'hubchrome.js' ? rm(s) : f === 'viewpref.js' ? rmPm(s) : s))), 'forbidden DOM/storage APIs: none in any dist js file except the three cv.pass calls in hubchrome.js and the two cv.postmode calls in viewpref.js (' + dist.length + ' files)');
       const mine = ['hubapi.js', 'framebust.js'].map(f => fs.readFileSync(path.join(ROOT, 'src', f), 'utf8')).join('\n');
       const chrome = rm(fs.readFileSync(path.join(ROOT, 'src', 'hubchrome.js'), 'utf8'));
       ok(!/localStorage|sessionStorage|indexedDB|document\.cookie|innerHTML|document\.write|serviceWorker/.test(chrome.replace(/\/\/.*$/gm, '')) && (fs.readFileSync(path.join(ROOT, 'src', 'hubchrome.js'), 'utf8').match(/localStorage/g) || []).length === 3, 'hubchrome.js: localStorage appears exactly 3 times (get/set/remove of PASS_KEY), no other storage API');
