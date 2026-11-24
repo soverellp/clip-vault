@@ -12,6 +12,10 @@ import { countOf } from './post.js';
 import * as motion from './kit.js';
 import { openShortcuts } from './shortcuts.js';
 import { playlistsNav } from './plui.js';
+import { momentKey } from './shortlist.js';
+import { combosOf, comboOf } from './playlists.js';
+import { versionSelect } from './vsel.js';
+import { writePlPref } from './viewpref.js';
 
 let dlg, feed, ctr, bMute, bSafe, sheet, handle, bar, kitEl;
 let ids = [], S = [], idx = -1, muted = true, safeOn = false, sheetOpen = false, playTimer = 0, raf = 0, opener = null, pendingIds = null, opening = false;
@@ -195,10 +199,31 @@ function renderSheet(c) {
   curChips = chips(c);
   const row2 = h('div', { class: 'pm-row pm-posted' });
   { const ctl = postedControl(c, { cls: 'pm-po' }); toggles = [ctl.chipBtn('youtube'), ctl.chipBtn('instagram')]; row2.append(ctl); }
-  bar.replaceChildren(h('div', { class: 'pm-meta' }, h('h2', { class: 'pm-title', lang: 'hi-Latn', text: titleOf(c) }), h('span', { class: 'pm-sub', text: `${dur(c.dur)}${c.score != null ? ' · score ' + c.score : ''}` }), canWrite() ? curChips : null), row1, row2);
+  const vm = combosOf(momentKey(c), state.clips);
+  const vsel = vm.size > 1 ? versionSelect({ combos: [...vm.keys()], current: comboOf(c), cls: 'vs-pm', aria: 'Version of this clip', onPick: (k, how) => swapVersion(vm.get(k), k, how) }) : null;
+  bar.replaceChildren(h('div', { class: 'pm-meta' }, h('h2', { class: 'pm-title', lang: 'hi-Latn', text: titleOf(c) }), h('span', { class: 'pm-sub', text: `${dur(c.dur)}${c.score != null ? ' · score ' + c.score : ''}` }), canWrite() ? curChips : null), ...(vsel ? [vsel.el] : []), row1, row2);
   const secs = [kit.yt, kit.ig].filter(s => s.fields.length).map(sec => h('section', { class: 'pk-sec', 'data-kind': sec.kind }, h('h3', { text: sec.name === 'YouTube' ? 'YouTube Shorts' : 'Instagram Reels' }), ...sec.fields.map(f => field(f))));
   kitEl.replaceChildren(...(secs.length ? secs : [h('p', { class: 'muted', text: 'No post text for this clip yet.' })]));
   kitEl.scrollTop = 0;
+}
+// Version toggle of the feed: the slide stands for the other clip of the same moment; the playback position and the play/pause state stay.
+function swapVersion(nc, k, how) {
+  const s = S[idx]; if (!s || !nc || nc === s.c) return;
+  const v = s.video; s.c = nc; ids[idx] = nc.id; s.el.dataset.id = nc.id;
+  const [va, t] = k.split('|'); state.variants.set(momentKey(nc), { variant: va, teaser: t === '1' }); writePlPref({ mode: k });
+  if (nc.poster && s.img) api.loadImage(s.img, nc.poster).catch(() => {});
+  if (v && nc.video) {
+    const t0 = v.currentTime || 0, was = !v.paused;
+    api.fetchMedia(nc.video).then(m => {
+      if (s.video !== v) { m.revoke(); return; }
+      const old = s.media; s.media = m; v.src = m.url; old?.revoke();
+      v.addEventListener('loadedmetadata', () => { try { v.currentTime = Math.min(t0, Math.max(0, (v.duration || t0) - 0.05)); } catch { /* ignore */ } if (was && !s.userPaused) v.play().catch(() => s.el.classList.add('paused')); }, { once: true });
+    }).catch(e => { s.msg.hidden = false; s.msg.textContent = api.errorText(e); });
+  }
+  renderSheet(nc);
+  bar.querySelector(`.vs-b[data-axis="${how.axis}"][data-val="${how.val}"]`)?.focus({ preventScroll: true });
+  try { history.replaceState(null, '', '#/post/' + encodeURIComponent(nc.id)); } catch { /* ignore */ }
+  announce(`${t === '1' ? 'Teaser' : 'No teaser'}, ${va.replace('-', ' ')} version`);
 }
 function field(f) {
   const id = 'pmf' + Math.random().toString(36).slice(2, 8);

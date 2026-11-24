@@ -74,6 +74,8 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
   const modal = page => page.waitForSelector('dialog.pl-modal[open].shown', { timeout: 6000 });
   const modalGone = page => page.waitForSelector('dialog.pl-modal[open]', { state: 'detached', timeout: 6000 }).catch(() => null);
   const foot = (page, label) => page.click(`dialog.pl-modal[open] .modal-foot button:has-text("${label}")`);
+  const pickMenu = async (page, opener, act) => { await page.click(opener); await page.waitForSelector('dialog.sheet[open].shown', { timeout: 6000 }); await page.click(`dialog.sheet[open] [data-act="${act}"]`); await sleep(250); };
+  const itemMenu = (page, k, act) => pickMenu(page, `[data-k="${k}"] .pl-more`, act), headMenu = (page, act) => pickMenu(page, '.pl-menu-b', act), cardMenu = (page, title, act) => pickMenu(page, `.pl-card:has-text("${title}") .pl-more`, act);
   const openFolder = async (page, id) => { await sleep(700); await page.$eval(`.folder[data-stream="${id}"] a`, e => e.click()); await page.waitForSelector('ul.grid.moments li.card'); await page.click('.cat[data-cat="all"]'); };
   const card = id => `ul.grid.moments li.card[data-key$="|${id}"]`;
   const itemsOrder = page => page.$$eval('.pl-items .pl-item', e => e.map(x => x.dataset.k));
@@ -134,13 +136,13 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       await page.keyboard.press('Escape'); await sleep(300);
       // the playlist screen: each moment once, version toggle
       await page.click('.pl-card .pl-card-t'); await page.waitForSelector('.pl-item');
-      ok((await page.$$('.pl-items .pl-item')).length === 2 && (await page.$$('.pl-item[data-k="' + K.a1 + '"] .pl-mode')).length === 2, T + 'each moment appears once, with a two-version toggle');
+      ok((await page.$$('.pl-items .pl-item')).length === 2 && (await page.$$('.pl-item[data-k="' + K.a1 + '"] .vs-b')).length === 2, T + 'each moment appears once, with a two-version toggle');
       const href0 = await page.getAttribute(`.pl-item[data-k="${K.a1}"] a.pl-thumbw`, 'href');
-      await page.click(`.pl-item[data-k="${K.a1}"] .pl-mode[data-v="clean|0"]`); await sleep(250);
+      await page.click(`.pl-item[data-k="${K.a1}"] .vs-b[data-axis="v"][data-val="clean"]`); await sleep(250);
       const href1 = await page.getAttribute(`.pl-item[data-k="${K.a1}"] a.pl-thumbw`, 'href');
       ok(href0 !== href1 && href1.endsWith('a1-c') && href0.endsWith('a1-w'), T + 'switching the toggle swaps the clip the thumbnail opens (' + href0.slice(-4) + ' -> ' + href1.slice(-4) + ')');
       ok(await page.evaluate(() => (JSON.parse(localStorage.getItem('cv.pl')) || {}).mode) === 'clean|0', T + 'the toggle choice is remembered per viewer');
-      ok((await small(page, '.pl-item .pl-mode, .pl-bar .btn')).length === 0 && await noOverflow(page), T + 'playlist screen: 44 px targets, no horizontal scroll');
+      ok((await small(page, '.pl-item .vs-b, .pl-bar .btn')).length === 0 && await noOverflow(page), T + 'playlist screen: 44 px targets, no horizontal scroll');
       await shot(page, `pl2_modes_${tag}.png`, { fullPage: false });
       ok(errs.length === 0, T + 'no console / CSP errors'); if (errs.length) console.log(errs.slice(0, 3));
       await ctx.close();
@@ -247,9 +249,9 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       // playlists screen: duplicate, rename, remove deleted
       await go(page, '#/playlists/seed1', '.pl-item');
       ok((await page.$$('.pl-item.stale')).length === 1, 'the playlist has one stale (deleted) clip');
-      await page.click('.pl-rmstale'); await sleep(450);
+      await headMenu(page, 'rmstale'); await sleep(450);
       ok(!plDoc(hub).playlists.find(p => p.id === 'seed1').items.some(i => i.moment_id === 'deleted|ghost') && (await page.$$('.pl-item.stale')).length === 0, 'Remove deleted: the stale item is gone, live items stay');
-      await page.click('.pl-dup'); await sleep(450);
+      await headMenu(page, 'dup'); await sleep(450);
       let d = plDoc(hub), cp = d.playlists.find(p => p.title === 'Friday batch (copy)'), src = d.playlists.find(p => p.id === 'seed1');
       ok(cp && cp.items.map(i => i.moment_id).join() === src.items.map(i => i.moment_id).join() && cp.status === 'draft', 'Duplicate: a new playlist with the same references');
       await page.click('.pl-rename-b'); await page.fill('#pl-rename', 'Renamed list'); await page.keyboard.press('Enter'); await sleep(450);
@@ -284,7 +286,7 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       const h2 = newHub(); h2.put(PF, JSON.stringify(SEEDPL));
       ({ ctx, page, errs } = await session(h2)); await openFolder(page, S1);
       await page.$eval(card('b2') + ' .pi-add-more', e => e.click()); await modal(page); await page.fill('#pl-new-name', 'Two'); await page.click('dialog.pl-modal[open] .pl-create-b'); await page.click('dialog.pl-modal[open] .pl-save'); await modalGone(page); await sleep(400);
-      await go(page, '#/playlists', '.pl-card'); await page.click('.pl-card[data-id="seed1"] .danger-ghost'); await page.click('dialog.pl-modal[open] .modal-foot button:has-text("Delete")'); await sleep(500);
+      await go(page, '#/playlists', '.pl-card'); await pickMenu(page, '.pl-card[data-id="seed1"] .pl-more', 'delete'); await page.click('dialog.pl-modal[open] .modal-foot button:has-text("Delete")'); await sleep(500);
       const dd = plDoc(h2); ok(dd.playlists.length === 1 && dd.playlists[0].title === 'Two' && dd.playlists[0].items.length === 1 && JSON.parse(h2.text('index.json')).clips.length > 3, 'deleting a playlist keeps the other playlists and every clip');
       ok(errs.length === 0, 'no console / CSP errors (references)');
       await ctx.close();

@@ -74,6 +74,8 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
   const modal = page => page.waitForSelector('dialog.pl-modal[open].shown', { timeout: 6000 });
   const modalGone = page => page.waitForSelector('dialog.pl-modal[open]', { state: 'detached', timeout: 6000 }).catch(() => null);
   const foot = (page, label) => page.click(`dialog.pl-modal[open] .modal-foot button:has-text("${label}")`);
+  const pickMenu = async (page, opener, act) => { await page.click(opener); await page.waitForSelector('dialog.sheet[open].shown', { timeout: 6000 }); await page.click(`dialog.sheet[open] [data-act="${act}"]`); await sleep(250); };
+  const itemMenu = (page, k, act) => pickMenu(page, `[data-k="${k}"] .pl-more`, act), headMenu = (page, act) => pickMenu(page, '.pl-menu-b', act), cardMenu = (page, title, act) => pickMenu(page, `.pl-card:has-text("${title}") .pl-more`, act);
   const openFolder = async (page, id) => { await sleep(700); await page.$eval(`.folder[data-stream="${id}"] a`, e => e.click()); await page.waitForSelector('ul.grid.moments li.card'); await page.click('.cat[data-cat="all"]'); };
   const card = id => `ul.grid.moments li.card[data-key$="|${id}"]`;
   const itemsOrder = page => page.$$eval('.pl-items .pl-item', e => e.map(x => x.dataset.k));
@@ -94,7 +96,8 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       hub.put('index.json', JSON.stringify((() => { const i = JSON.parse(hub.text('index.json')); for (const c of i.clips) if (c.id.startsWith('b2')) c.posted_on = ['instagram']; return i; })()));
       const { ctx, page, errs } = await session(hub, { width }); await openFolder(page, S1); await shotPost(page);
       ok(!(await page.$(card('a1') + ' .pi-mark')), T + 'old "Mark posted" button is gone from the card');
-      ok((await page.$$eval(card('a1') + ' .po-chip', e => e.map(x => x.textContent.trim()))).join() === 'YouTube,Instagram,TikTok,X,Other', T + 'card: 5 chips in order');
+      ok((await page.$$eval(card('a1') + ' .po-chip', e => e.map(x => x.textContent.trim()))).join() === 'YT,IG,TT,X,+' && (await page.$$eval(card('a1') + ' .po-chip', e => e.map(x => x.getAttribute('aria-label').split(':')[0]))).join() === 'YouTube,Instagram,TikTok,X,Other', T + 'card: 5 compact chips in order (full names in aria-label)');
+      ok(await page.$$eval(card('a1') + ' .po-chip', e => new Set(e.map(x => Math.round(x.getBoundingClientRect().top))).size === 1), T + 'card: the five chips sit on ONE row');
       const sm = await page.$$eval('.po-chip, .po-det', els => els.filter(e => e.offsetParent).filter(e => { const r = e.getBoundingClientRect(); return e.offsetHeight < 43.5 || e.offsetWidth < 43.5; }).length);
       ok(sm === 0, T + 'every chip / details target >= 44 px');
       ok(await pressed(page, chip('b2', 'instagram')) === 'true' && (await page.textContent(card('b2') + ' .po-else')).includes('admin details'), T + 'index posted_on shows as posted with the "set elsewhere" hint');
@@ -111,7 +114,7 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       ok(!poDoc(hub).posted[K.a1] && await pressed(page, chip('a1', 'youtube')) === 'false', T + 'Undo removes it again (2 commits)');
       // details
       await page.click(chip('a1', 'x')); await until(() => hub.commits.length === 3);
-      await page.click(`${card('a1')} .po-det[data-p="x"]`); await modal(page);
+      await toastBtn(page, 'details'); await modal(page);
       ok(await page.inputValue('#po-date') === poDoc(hub).posted[K.a1].x.date, T + 'details: date defaults to the stored date (today)');
       await page.fill('#po-link', 'http://evil.example/x'); await foot(page, 'Save');
       ok((await page.textContent('dialog.pl-modal[open] .field-err')).includes('https://') && hub.commits.length === 3, T + 'details: http link refused, nothing saved');

@@ -73,6 +73,8 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
   const modal = page => page.waitForSelector('dialog.pl-modal[open].shown', { timeout: 6000 });
   const modalGone = page => page.waitForSelector('dialog.pl-modal[open]', { state: 'detached', timeout: 6000 }).catch(() => null);
   const foot = (page, label) => page.click(`dialog.pl-modal[open] .modal-foot button:has-text("${label}")`);
+  const pickMenu = async (page, opener, act) => { await page.click(opener); await page.waitForSelector('dialog.sheet[open].shown', { timeout: 6000 }); await page.click(`dialog.sheet[open] [data-act="${act}"]`); await sleep(250); };
+  const itemMenu = (page, k, act) => pickMenu(page, `[data-k="${k}"] .pl-more`, act), headMenu = (page, act) => pickMenu(page, '.pl-menu-b', act), cardMenu = (page, title, act) => pickMenu(page, `.pl-card:has-text("${title}") .pl-more`, act);
   const openFolder = async (page, id) => { await page.click(`.folder[data-stream="${id}"] a`); await page.waitForSelector('ul.grid.moments li.card'); await page.click('.cat[data-cat="all"]'); };
   const card = id => `ul.grid.moments li.card[data-key$="|${id}"]`;
   const itemsOrder = page => page.$$eval('.pl-items .pl-item', e => e.map(x => x.dataset.k));
@@ -87,8 +89,8 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       await openFolder(page, S1);
       ok((await page.$$('ul.grid.moments li.card .pinfo')).length >= 2, 'Post info ON: each card shows the post-ready block');
       ok((await page.textContent(card('a1') + ' .pi-cap')).includes('Caption for a1 #boss'), 'the block shows the clip post caption when the moment is in no playlist');
-      ok(await page.isVisible(card('a1') + ' .pi-copy') && await page.isVisible(card('a1') + ' .po-ctl') && !(await page.$(card('a1') + ' .pi-mark')) && await page.isVisible(card('a1') + ' .pi-add'), 'block has Copy caption, the Posted on chips (no Mark posted button), Add to playlist');
-      await page.click(card('a1') + ' .pi-copy'); await sleep(150);
+      ok(!(await page.$(card('a1') + ' .pi-copy')) && await page.isVisible(card('a1') + ' .po-ctl') && !(await page.$(card('a1') + ' .pi-mark')) && await page.isVisible(card('a1') + ' .pi-add'), 'block has the Posted on chips and Add to playlist; Copy caption moved to the card ... menu');
+      await pickMenu(page, card('a1') + ' .card-more', 'copy-caption');
       ok((await page.evaluate(() => window.__copied.at(-1) || '')).startsWith('Caption for a1 #boss'), 'Copy caption copies the caption');
       await page.click('#pm-toggle'); await sleep(200);
       ok((await page.$$('ul.grid.moments li.card .pinfo')).length === 0 && (await page.getAttribute('#pm-toggle', 'aria-pressed')) === 'false', 'switch OFF: plain browsing cards, no post block');
@@ -141,28 +143,28 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       // create / rename / delete with confirm
       await page.click('.pl-new'); await modal(page); await page.fill('#plf-title', 'Tmp list'); await page.check('.pl-fs input[value=tiktok]'); await foot(page, 'Create'); await modalGone(page); await sleep(300);
       ok(plDoc(hub).playlists.length === 2 && plDoc(hub).playlists[1].platforms.join() === 'tiktok', 'create: new playlist stored with its platform');
-      await page.click('.pl-card:has-text("Tmp list") button[aria-label^="Edit"]'); await modal(page); await page.fill('#plf-title', 'Tmp renamed'); await foot(page, 'Save'); await modalGone(page); await sleep(300);
+      await cardMenu(page, 'Tmp list', 'edit'); await modal(page); await page.fill('#plf-title', 'Tmp renamed'); await foot(page, 'Save'); await modalGone(page); await sleep(300);
       ok(plDoc(hub).playlists[1].title === 'Tmp renamed', 'rename saved');
-      const c0 = hub.commits.length; await page.click('.pl-card:has-text("Tmp renamed") button[aria-label^="Delete"]'); await modal(page); await foot(page, 'Cancel'); await modalGone(page);
+      const c0 = hub.commits.length; await cardMenu(page, 'Tmp renamed', 'delete'); await modal(page); await foot(page, 'Cancel'); await modalGone(page);
       ok(hub.commits.length === c0, 'delete: cancel in the confirm dialog changes nothing');
-      await page.click('.pl-card:has-text("Tmp renamed") button[aria-label^="Delete"]'); await modal(page); await foot(page, 'Delete'); await modalGone(page); await sleep(300);
+      await cardMenu(page, 'Tmp renamed', 'delete'); await modal(page); await foot(page, 'Delete'); await modalGone(page); await sleep(300);
       ok(plDoc(hub).playlists.length === 1, 'delete: confirmed, playlist removed');
       // open one
       await page.click('.pl-card-t'); await page.waitForSelector('.pl-items');
       ok((await itemsOrder(page)).join() === `${K.a1},deleted|ghost,${K.b2}`, 'detail: items in stored order');
       ok((await page.$$('.pl-item.stale')).length === 1 && (await page.textContent('.pl-item.stale')).includes('No longer in the library'), 'stale moment is shown greyed and labelled');
-      ok((await page.$$('.pl-item.stale .pl-edit, .pl-item.stale .pl-copy, .pl-item.stale .pl-mark')).length === 0, 'stale item offers only reorder/remove');
+      await page.click('.pl-item.stale .pl-more'); await page.waitForSelector('dialog.sheet[open].shown'); ok((await page.$$eval('dialog.sheet[open] [data-act]', e => e.map(x => x.dataset.act).join())) === 'up,down,remove' && (await page.$$('.pl-item.stale .po-ctl, .pl-item.stale .vsel')).length === 0, 'stale item offers only reorder/remove'); await page.keyboard.press('Escape'); await sleep(300);
       ok(await noOverflow(page), 'phone 390: no horizontal scroll on the playlist screen');
-      const sm = await small(page, '.pl-items button, .pl-bar .btn, .pl-bar a'); ok(sm.length === 0, 'touch targets are at least 44 px (' + sm.join('|') + ')');
+      const sm = await small(page, '.pl-items button:not(.po-det), .pl-bar .btn, .pl-bar a, .pl-det summary'); ok(sm.length === 0, 'touch targets are at least 44 px (' + sm.join('|') + ')');
       // up/down buttons (phone)
-      await page.click(`[data-k="${K.b2}"] .pl-up`); await sleep(350);
+      await itemMenu(page, K.b2, 'up'); await sleep(100);
       ok((await itemsOrder(page)).join() === `${K.a1},${K.b2},deleted|ghost`, 'up button moves an item (committed)');
       ok(plDoc(hub).playlists[0].items.map(i => i.moment_id).join() === `${K.a1},${K.b2},deleted|ghost`, 'the new order is in playlists.json');
       ok((await page.evaluate(() => document.activeElement?.className || '')).includes('pl-up') || true, 'focus stays on the moved item controls');
-      await page.click(`[data-k="${K.a1}"] .pl-down`); await sleep(350);
+      await itemMenu(page, K.a1, 'down'); await sleep(100);
       ok((await itemsOrder(page))[1] === K.a1, 'down button moves an item');
       // item editor
-      await page.click(`[data-k="${K.b2}"] .pl-edit`); await modal(page);
+      await itemMenu(page, K.b2, 'edit'); await modal(page);
       await page.fill('#pie-title', 'Clutch 1v4'); await page.fill('#pie-caption', 'New caption'); await page.fill('#pie-tags', 'clutch, #gta6');
       ok((await page.textContent('dialog.pl-modal[open] .pl-count')).includes('2 hashtags'), 'editor shows live counts');
       await foot(page, 'Save'); await modalGone(page); await sleep(300);
@@ -178,12 +180,12 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       await page.click('.pl-apply'); await modal(page); await page.selectOption('#apt-tpl', 'tpl_contentrewards_kai'); await page.check('#apt-over'); await foot(page, 'Apply'); await modalGone(page); await sleep(350);
       ok(plDoc(hub).playlists[0].items.find(i => i.moment_id === K.b2).post.caption.includes('#KaiCenat'), '"Overwrite" replaces the edited item too');
       // copy
-      await page.click(`[data-k="${K.a1}"] .pl-copy`); await sleep(150);
+      await itemMenu(page, K.a1, 'copy'); await sleep(150);
       ok((await page.evaluate(() => window.__copied.at(-1))).includes('#KaiCenat'), 'Copy caption per item');
-      await page.click('.pl-copyall'); await sleep(150);
+      await headMenu(page, 'copyall'); await sleep(150);
       const all = await page.evaluate(() => window.__copied.at(-1)); ok(all.startsWith('1. ') && all.includes('\n\n2. ') && !all.includes('Gone') && !all.includes('3. '), 'Copy all: plain text, numbered, stale item left out');
       // CSV
-      const [dl] = await Promise.all([page.waitForEvent('download'), page.click('.pl-csv')]);
+      const [dl] = await Promise.all([page.waitForEvent('download'), headMenu(page, 'csv')]);
       const csv = fs.readFileSync(await dl.path(), 'utf8').replace(/^﻿/, '');
       ok(csv.startsWith('title,caption,hashtags,platform,status,link,version,versions,clip_link\r\n') && csv.split('\r\n').length === 6 && !csv.includes('Gone'), 'CSV: header + 2 live items x 2 platforms, stale item ignored');
       // mark posted
@@ -193,10 +195,10 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       ok((await page.locator('.pl-mark').count()) === 0 && (await page.locator('.pl-item .po-ctl').count()) === 2, 'playlist items have the Posted on chips and no Mark posted button');
       await page.click(chipP(K.a1, 'youtube')); await sleep(700);
       ok(/^\d{4}-\d\d-\d\d$/.test(poD()[K.a1].youtube.date) && !JSON.stringify(plDoc(hub)).includes('"date"'), 'chip: stored in posted.json, playlists.json untouched');
-      ok((await page.textContent('.pl-prog-t')).includes('0 of 2'), 'progress waits for every playlist platform (youtube + x)');
+      ok((await page.textContent('.pl-summary')).includes('0 of 2'), 'progress waits for every playlist platform (youtube + x)');
       await page.click(chipP(K.a1, 'x')); await sleep(700);
       for (const k of ['youtube', 'x']) { await page.click(chipP(K.b2, k)); await sleep(700); }
-      ok((await page.textContent('.pl-prog-t')).includes('2 of 2') && await page.isVisible('.pl-setposted'), 'all posted: progress 2 of 2 and the playlist suggests status "posted"');
+      ok((await page.textContent('.pl-summary')).includes('2 of 2') && await page.isVisible('.pl-setposted'), 'all posted: progress 2 of 2 and the playlist suggests status "posted"');
       const pr = await page.$eval('.pl-head progress', e => e.value); ok(pr === 100, 'progress bar at 100');
       await page.click('.pl-setposted'); await sleep(350); ok(plDoc(hub).playlists[0].status === 'posted', 'playlist status set to posted on request');
       // library filter reads playlists.json posted info
@@ -218,7 +220,7 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       await page.screenshot({ path: path.join(SHOTS, 'pl_playlist_pc.png') });
      
       await go(page, '#/templates', '.tpl-card'); await page.screenshot({ path: path.join(SHOTS, 'pl_templates_pc.png') });
-      await go(page, '#/playlists/seed1', '.pl-items'); await page.click(`[data-k="${K.a1}"] .pl-edit`); await modal(page); await sleep(300); await page.screenshot({ path: path.join(SHOTS, 'pl_item_editor_pc.png') });
+      await go(page, '#/playlists/seed1', '.pl-items'); await itemMenu(page, K.a1, 'edit'); await modal(page); await sleep(300); await page.screenshot({ path: path.join(SHOTS, 'pl_item_editor_pc.png') });
       await ctx.close();
     }
     // ================= templates: presets from the fallback, manager, preview, seed-on-first-write
@@ -251,10 +253,10 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
     {
       const hub = newHub(); hub.put(PF, JSON.stringify(SEEDPL)); const { ctx, page } = await session(hub);
       await go(page, '#/playlists/seed1', '.pl-items'); await page.screenshot({ path: path.join(SHOTS, 'pl_playlist_phone.png') });
-      await page.click(`[data-k="${K.a1}"] .pl-edit`); await modal(page); await sleep(300); await page.screenshot({ path: path.join(SHOTS, 'pl_item_editor_phone.png') });
+      await itemMenu(page, K.a1, 'edit'); await modal(page); await sleep(300); await page.screenshot({ path: path.join(SHOTS, 'pl_item_editor_phone.png') });
       await foot(page, 'Cancel'); await modalGone(page);
       await sleep(150);
-      ok((await page.evaluate(() => document.activeElement?.className || '')).includes('pl-edit'), 'keyboard: focus returns to the Edit button after the dialog closes');
+      ok((await page.evaluate(() => document.activeElement?.className || '')).includes('pl-more'), 'keyboard: focus returns to the item ... button after the dialog closes');
       await ctx.close();
     }
     // ================= conflict retry, corrupt file, blocked storage, old config (read-only)
@@ -284,7 +286,7 @@ const plDoc = hub => JSON.parse(hub.text(PF)), tpDoc = hub => JSON.parse(hub.tex
       await go(page, '#/playlists', '.pl-card');
       ok((await page.textContent('.pl-ro')).includes('read-only') && await page.isDisabled('.pl-new'), 'old config without the shortlist token: playlists show everything read-only with a hint');
       await page.click('.pl-card-t'); await page.waitForSelector('.pl-items');
-      ok(await page.isDisabled('.pl-apply') && await page.isDisabled(`[data-k="${K.a1}"] .pl-up`) === true || await page.isDisabled(`[data-k="${K.b2}"] .pl-up`), 'read-only: edit controls disabled');
+      await page.click('.pl-menu-b'); await page.waitForSelector('dialog.sheet[open].shown'); ok(await page.isDisabled('.pl-apply') && await page.isDisabled('dialog.sheet[open] [data-act="dup"]') && await page.isDisabled('dialog.sheet[open] [data-act="delete"]'), 'read-only: edit controls disabled'); await page.keyboard.press('Escape'); await sleep(300);
       await go(page, '#/templates', '.tpl-card'); ok(await page.isDisabled('.tpl-new'), 'read-only: template manager disabled');
       ok(hub.commits.length === 0, 'read-only: no request ever wrote');
       await ctx.close();
