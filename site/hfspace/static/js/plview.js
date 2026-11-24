@@ -7,12 +7,10 @@ import { toast } from './toast.js';
 import { copyText } from './kit.js';
 import { titleOf, dur } from './fmt.js';
 import { liveKeys } from './shortlist.js';
-import { PL_PLATFORMS, PL_LABEL, PL_STATUS, captionRest, normTags, repClip, isStale, liveItems, progress, suggestStatus, itemDone, captionText, playlistText, playlistCsv, newId, itemModes, pickMode, comboLabel, playlistLinkPath, shareText } from './playlists.js';
+import { PL_PLATFORMS, PL_LABEL, PL_STATUS, normTags, repClip, isStale, liveItems, progress, suggestStatus, itemDone, captionText, playlistText, playlistCsv, newId, itemModes, pickMode, comboLabel, playlistLinkPath, shareText } from './playlists.js';
 import { readPlPref, writePlPref } from './viewpref.js';
 import { validatePost, applyTemplateToItems, renderPost } from './templates.js';
-import { postedControl, openPostedModal } from './postedui.js';
-import { openMenu, moreButton } from './menu.js';
-import { versionSelect } from './vsel.js';
+import { postedControl } from './postedui.js';
 import { ensureCss, canEditPl, RO_HINT, roMsg, plAct, streamOf, effectiveTemplates, templateById, addShortlistedToPlaylist, newItemPost } from './plui.js';
 
 let focusAfter = null, dragKey = null, lastEl = null, rename = null;   // rename = { id, text } while a title is being edited inline
@@ -32,14 +30,12 @@ export function confirmDialog({ title, text, ok = 'Delete', danger = true }) {
   });
 }
 const crumb = (label, href) => h('a', { class: 'back-link', href }, icon('back'), h('span', { text: label }));
-const platChips = p => (p.platforms.length ? h('span', { class: 'pl-plats' }, ...p.platforms.map(k => h('span', { class: 'pi-badge', 'data-p': k, text: PL_LABEL[k] }))) : null);
+const platChips = p => h('span', { class: 'pl-plats' }, ...(p.platforms.length ? p.platforms.map(k => h('span', { class: 'pi-badge', 'data-p': k, text: PL_LABEL[k] })) : [h('span', { class: 'muted', text: 'No platform chosen' })]));
 const statusChip = s => h('span', { class: 'pl-status', 'data-s': s, text: s });
-function progressBar(p, label = true) {
+function progressBar(p) {
   const g = progress(p, state.clips);
-  return h('div', { class: 'pl-prog' }, h('progress', { max: 100, value: g.pct, 'aria-label': `Posted ${g.done} of ${g.total}` }), label ? h('span', { class: 'pl-prog-t', text: g.total ? `${g.done} of ${g.total} posted` : 'Empty' }) : null);
+  return h('div', { class: 'pl-prog' }, h('progress', { max: 100, value: g.pct, 'aria-label': `Posted ${g.done} of ${g.total}` }), h('span', { class: 'pl-prog-t', text: g.total ? `${g.done} of ${g.total} posted` : 'Empty' }));
 }
-const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
-const deletePlaylist = async p => { if (await confirmDialog({ title: 'Delete this playlist?', text: `"${p.title}" and its post text and posted marks will be removed for everyone. The clips stay in the library.` })) { const r = await plAct({ type: 'delete', id: p.id }, 'Playlist deleted'); if (r && /^#\/playlists\/./.test(location.hash)) location.hash = '#/playlists'; } };
 
 // ---- create / rename form
 function openPlaylistForm(p, opener) {
@@ -89,15 +85,15 @@ function renderList(el) {
   const list = h('ul', { class: 'pl-list', 'aria-label': 'Playlists' });
   for (const p of pls) {
     const g = progress(p, state.clips), stale = p.items.length - liveItems(p, state.clips).length;
+    const edit = btn('', { ic: 'edit', kind: 'ghost', cls: 'icon', aria: `Edit ${p.title}`, on: e => openPlaylistForm(p, e.currentTarget), disabled: ro });
+    const del = btn('', { ic: 'trash', kind: 'ghost', cls: 'icon danger-ghost', aria: `Delete ${p.title}`, disabled: ro, on: async () => {
+      if (await confirmDialog({ title: 'Delete this playlist?', text: `"${p.title}" and its post text and posted marks will be removed for everyone. The clips stay in the library.` })) await plAct({ type: 'delete', id: p.id }, 'Playlist deleted'); } });
     const share = btn('', { ic: 'share', kind: 'ghost', cls: 'icon pl-share-b', aria: `Share ${p.title}`, on: e => openShareDialog(p, e.currentTarget) });
-    const more = moreButton(`More actions for ${p.title}`, op => openMenu({ title: p.title, opener: op, entries: [
-      { id: 'edit', label: 'Rename and details', ic: 'edit', disabled: ro, run: () => openPlaylistForm(p, op) },
-      { id: 'dup', label: 'Duplicate', ic: 'copy', disabled: ro, run: () => dupPlaylist(p) },
-      { id: 'delete', label: 'Delete playlist', ic: 'trash', danger: true, disabled: ro, run: () => deletePlaylist(p) }] }), 'pl-more');
+    const dup = btn('', { ic: 'copy', kind: 'ghost', cls: 'icon pl-dup-b', aria: `Duplicate ${p.title}`, disabled: ro, on: () => dupPlaylist(p) });
     list.append(h('li', { class: 'pl-card', 'data-id': p.id },
       h('div', { class: 'pl-card-main' }, h('a', { class: 'pl-card-t', href: '#/playlists/' + encodeURIComponent(p.id), text: p.title }), statusChip(p.status), p.description ? h('p', { class: 'pl-desc', text: p.description }) : null,
         h('div', { class: 'pl-meta' }, platChips(p), h('span', { class: 'muted', text: `${g.total} moment${g.total === 1 ? '' : 's'}` + (stale ? `, ${stale} no longer in the library` : '') })), progressBar(p)),
-      h('div', { class: 'pl-card-act' }, share, more)));
+      h('div', { class: 'pl-card-act' }, share, dup, edit, del)));
   }
   put(el, head, ro ? h('p', { class: 'pl-ro', text: roMsg() }) : null, pls.length ? list : h('div', { class: 'empty pl-empty' }, h('p', { text: 'No playlists yet.' }), h('p', { class: 'muted', text: 'Create one here, or tap "Add to playlist" on any clip.' })));
 }
@@ -158,22 +154,13 @@ function itemRow(p, it, i, n, ro) {
   const w = stale ? [] : validatePost(it.post, tpl, { dur: c?.dur });
   const img = h('img', { alt: '', class: 'pl-thumb', decoding: 'async', loading: 'lazy' });
   if (c?.poster) { img.addEventListener('error', () => img.remove()); api.loadImage(img, c.poster, {}).catch(() => img.remove()); }
-  const move = (to, sel) => { focusAfter = `[data-k="${CSS.escape(it.moment_id)}"] ${sel}`; plAct({ type: 'move', id: p.id, moment_id: it.moment_id, to }); };
+  const mb = (label, ic, run, extra = {}) => btn('', { ic, kind: 'ghost', cls: 'icon ' + (extra.cls || ''), aria: `${label}: item ${i + 1}`, title: label, on: run, disabled: extra.disabled });
+  const up = mb('Move up', 'chevu', () => { focusAfter = `[data-k="${CSS.escape(it.moment_id)}"] .pl-up`; plAct({ type: 'move', id: p.id, moment_id: it.moment_id, to: i - 1 }); }, { cls: 'pl-up', disabled: ro || i === 0 });
+  const dn = mb('Move down', 'chevd', () => { focusAfter = `[data-k="${CSS.escape(it.moment_id)}"] .pl-down`; plAct({ type: 'move', id: p.id, moment_id: it.moment_id, to: i + 1 }); }, { cls: 'pl-down', disabled: ro || i === n - 1 });
+  const rm = mb('Remove', 'trash', () => plAct({ type: 'remove_item', id: p.id, moment_id: it.moment_id }, 'Removed from the playlist'), { cls: 'pl-rm danger-ghost', disabled: ro });
   const handle = h('span', { class: 'pl-handle', title: 'Drag to reorder', 'aria-hidden': 'true' }, icon('dots'));
-  let li;
-  const pick = (k, how) => { modeMem.set(it.moment_id, k); writePlPref({ mode: k }); const nl = itemRow(p, it, i, n, ro); li.replaceWith(nl); nl.querySelector(`.vs-b[data-axis="${how.axis}"][data-val="${how.val}"]`)?.focus(); };
-  const vs = !stale && modes.length > 1 ? versionSelect({ combos: modes.map(x => x.key), current: cur?.key, cls: 'vs-item pl-modes', aria: `Version: item ${i + 1}`, onPick: pick }) : null;
-  const text = stale ? '' : captionRest(it.post.title || titleOf(c), it.post.caption);
-  const tags = !stale && it.post.hashtags.length ? it.post.hashtags.join(' ') : '';
-  const more = stale ? moreButton(`More actions: item ${i + 1}`, op => openMenu({ title: `Item ${i + 1}`, opener: op, entries: [
-      { id: 'up', label: 'Move up', ic: 'chevu', disabled: ro || i === 0, run: () => move(i - 1, '.pl-more') }, { id: 'down', label: 'Move down', ic: 'chevd', disabled: ro || i === n - 1, run: () => move(i + 1, '.pl-more') },
-      { id: 'remove', label: 'Remove from playlist', ic: 'trash', danger: true, disabled: ro, run: () => plAct({ type: 'remove_item', id: p.id, moment_id: it.moment_id }, 'Removed from the playlist') }] }), 'pl-more')
-    : moreButton(`More actions: item ${i + 1}`, op => openMenu({ title: it.post.title || titleOf(c), desc: `Item ${i + 1} of ${n}`, opener: op, entries: [
-      { id: 'edit', label: 'Edit post text', ic: 'edit', disabled: ro, run: o => openItemEditor(p, it, o) },
-      { id: 'copy', label: 'Copy caption', ic: 'copy', run: o => copyText(captionText(it.post) || it.post.title, 'Caption copied', o) },
-      { id: 'posted', label: 'Posted date and link...', ic: 'check', run: o => openPostedModal(c, o) },
-      { id: 'up', label: 'Move up', ic: 'chevu', disabled: ro || i === 0, run: () => move(i - 1, '.pl-more') }, { id: 'down', label: 'Move down', ic: 'chevd', disabled: ro || i === n - 1, run: () => move(i + 1, '.pl-more') },
-      { id: 'remove', label: 'Remove from playlist', ic: 'trash', danger: true, disabled: ro, run: () => plAct({ type: 'remove_item', id: p.id, moment_id: it.moment_id }, 'Removed from the playlist') }] }), 'pl-more');
+  let li; const pick = k => { modeMem.set(it.moment_id, k); writePlPref({ mode: k }); const nl = itemRow(p, it, i, n, ro); li.replaceWith(nl); nl.querySelector(`.pl-mode[data-v="${k}"]`)?.focus(); };
+  const toggle = modes.length > 1 ? h('div', { class: 'pl-modes', role: 'group', 'aria-label': `Version: item ${i + 1}` }, ...modes.map(x => h('button', { type: 'button', class: 'pl-mode', 'data-v': x.key, 'aria-pressed': String(x.key === cur?.key), text: x.label, on: { click: () => pick(x.key) } }))) : null;
   li = h('li', { class: 'pl-item' + (stale ? ' stale' : ''), 'data-k': it.moment_id, 'aria-label': stale ? `Item ${i + 1}, no longer in the library` : `Item ${i + 1}, ${titleOf(c)}` });
   if (!ro) {
     handle.addEventListener('pointerdown', e => { if (e.pointerType === 'mouse') li.draggable = true; });
@@ -183,16 +170,18 @@ function itemRow(p, it, i, n, ro) {
     li.addEventListener('dragleave', () => li.classList.remove('over'));
     li.addEventListener('drop', e => { e.preventDefault(); li.classList.remove('over'); const k = dragKey; dragKey = null; if (k && k !== it.moment_id) { focusAfter = `[data-k="${CSS.escape(k)}"] .pl-handle`; plAct({ type: 'move', id: p.id, moment_id: k, to: i }); } });
   }
-  const meta = stale ? null : [c.dur ? dur(c.dur) : '', modes.length > 1 ? plural(modes.length, 'version') : ''].filter(Boolean).join(' · ');
-  const det = !stale && (text || tags) ? h('details', { class: 'pl-det' }, h('summary', { text: 'Details' }), text ? h('p', { class: 'pl-item-cap', text }) : null, tags ? h('p', { class: 'pi-tags', text: tags }) : null) : null;
-  li.append(...[h('div', { class: 'pl-lead' }, handle, h('span', { class: 'pl-n', text: String(i + 1) })),
-    stale ? h('div', { class: 'pl-thumbw' }, img) : h('a', { class: 'pl-thumbw', href: '#/clip/' + encodeURIComponent(c.id), 'aria-label': `Open ${cur ? cur.label : 'clip'}: item ${i + 1}` }, img),
+  li.append(handle, h('span', { class: 'pl-n', text: String(i + 1) }), stale ? h('div', { class: 'pl-thumbw' }, img) : h('a', { class: 'pl-thumbw', href: '#/clip/' + encodeURIComponent(c.id), 'aria-label': `Open ${cur ? cur.label : 'clip'}: item ${i + 1}` }, img),
     h('div', { class: 'pl-item-main' },
       h('p', { class: 'pl-item-t', text: stale ? 'No longer in the library' : (it.post.title || titleOf(c)) }),
-      stale ? h('p', { class: 'muted', text: 'This clip was trashed or deleted. It is ignored in Copy all and CSV.' }) : (meta ? h('p', { class: 'muted pl-meta1', text: meta }) : null)),
-    more,
-    stale ? null : h('div', { class: 'pl-item-ctl' }, vs?.el, postedControl(c, { compact: true })),
-    det, w.length ? h('ul', { class: 'pl-warn small', 'aria-label': 'Warnings' }, ...w.map(x => h('li', { text: x }))) : null].filter(Boolean));
+      stale ? h('p', { class: 'muted', text: 'This clip was trashed or deleted. It is ignored in Copy all and CSV.' }) : h('p', { class: 'pl-item-cap', text: it.post.caption || '(no caption yet)' }),
+      !stale && it.post.hashtags.length ? h('p', { class: 'pi-tags', text: it.post.hashtags.join(' ') }) : null,
+      toggle,
+      !stale && c.dur ? h('p', { class: 'muted pl-dur', text: dur(c.dur) }) : null,
+      stale ? null : postedControl(c), w.length ? h('ul', { class: 'pl-warn small', 'aria-label': 'Warnings' }, ...w.map(x => h('li', { text: x }))) : null),
+    h('div', { class: 'pl-item-act' }, up, dn,
+      stale ? null : btn('Edit', { ic: 'edit', cls: 'sm pl-edit', on: e => openItemEditor(p, it, e.currentTarget), disabled: ro }),
+      stale ? null : btn('Copy', { ic: 'copy', cls: 'sm pl-copy', aria: `Copy caption: item ${i + 1}`, on: e => copyText(captionText(it.post) || it.post.title, 'Caption copied', e.currentTarget) }),
+      rm));
   return li;
 }
 function titleBlock(p, ro) {
@@ -204,35 +193,28 @@ function titleBlock(p, ro) {
     focusAfter = '#pl-rename';
     return h('form', { class: 'pl-rename', on: { submit: e => { e.preventDefault(); done(true); } } }, inp, btn('Save', { type: 'submit', kind: 'primary', cls: 'sm pl-rename-ok' }), btn('Cancel', { cls: 'sm', on: () => done(false) }));
   }
-  const t = h('h1', { class: 'page-title', id: 'page-title', tabindex: '-1' });
-  if (ro) t.textContent = p.title;
-  else t.append(h('button', { type: 'button', class: 'pl-title-b pl-rename-b', title: 'Tap to rename', 'aria-label': `Rename ${p.title}`, on: { click: () => { rename = { id: p.id, text: p.title }; render(lastEl, location.hash); } } }, h('span', { text: p.title }), icon('edit')));
-  return h('div', { class: 'pl-titlerow' }, t);
+  return h('div', { class: 'pl-titlerow' }, h('h1', { class: 'page-title', id: 'page-title', tabindex: '-1', text: p.title }), btn('', { ic: 'edit', kind: 'ghost', cls: 'icon pl-rename-b', aria: `Rename ${p.title}`, title: 'Rename', disabled: ro, on: () => { rename = { id: p.id, text: p.title }; render(lastEl, location.hash); } }));
 }
 function renderOne(el, id) {
   const p = byId(id), ro = !canEditPl();
   if (!p) { put(el, h('header', { class: 'pl-head' }, crumb('Playlists', '#/playlists'), h('h1', { class: 'page-title', id: 'page-title', tabindex: '-1', text: 'Playlist not found' })), h('p', { class: 'muted pl-gone', text: 'This playlist was deleted, or the link is old. Ask whoever shared it for a new link.' })); return; }
-  const live = liveItems(p, state.clips), stale = p.items.length - live.length, sug = suggestStatus(p, state.clips), tpl = p.template_id ? templateById(p.template_id) : null, g = progress(p, state.clips);
-  const dl = () => download(`${p.title.replace(/[^\w-]+/g, '_').slice(0, 40) || 'playlist'}.csv`, '﻿' + playlistCsv(p, state.clips, { modeOf: it => { const ms = itemModes(it, state.clips), c0 = modeOf(it); return [c0 ? c0.label : '', ms.map(x => x.label).join(' + '), c0 ? clipLink(c0.clip) : '']; } }), 'text/csv;charset=utf-8');
-  const addSl = () => { const keys = [...liveKeys(state.shortlist, state.clips)].filter(k => !p.items.some(i => i.moment_id === k)); if (!keys.length) { toast('No new shortlisted moments to add.'); return; }
-    plAct({ type: 'add_items', id: p.id, moment_ids: keys, posts: Object.fromEntries(keys.map((k, j) => [k, newItemPost(p, repClip(k, state.clips), p.items.length + j + 1)])) }, `Added ${keys.length} shortlisted`); };
-  const more = moreButton('More actions for this playlist', op => openMenu({ title: p.title, opener: op, entries: [
-    { id: 'rename', label: 'Rename and details', ic: 'edit', disabled: ro, run: o => openPlaylistForm(p, o) },
-    { id: 'addsl', label: 'Add shortlisted', ic: 'star', disabled: ro, run: addSl },
-    { id: 'dup', label: 'Duplicate', ic: 'copy', disabled: ro, run: () => dupPlaylist(p) },
-    { id: 'copyall', label: 'Copy all (text)', ic: 'copy', disabled: !live.length, run: o => { const t = playlistText(p, state.clips); if (!t) { toast('Nothing to copy yet.'); return; } copyText(t, 'Copied the playlist text', o); } },
-    { id: 'csv', label: 'Download CSV', ic: 'download', disabled: !live.length, run: dl },
-    stale ? { id: 'rmstale', label: `Remove ${stale} deleted clip${stale === 1 ? '' : 's'}`, ic: 'trash', disabled: ro, run: () => plAct({ type: 'remove_stale', id: p.id, moment_ids: p.items.filter(i => isStale(i, state.clips)).map(i => i.moment_id) }, 'Removed deleted clips') } : null,
-    { id: 'delete', label: 'Delete playlist', ic: 'trash', danger: true, disabled: ro, run: () => deletePlaylist(p) }] }), 'pl-menu-b');
-  const bar = h('div', { class: 'pl-bar one' }, btn('Share', { ic: 'share', kind: 'primary', cls: 'pl-share-b pl-share', on: e => openShareDialog(p, e.currentTarget) }),
-    btn('Apply template', { ic: 'layers', cls: 'pl-apply', on: e => openApplyTemplate(p, e.currentTarget), disabled: ro || !live.length }), more);
-  const summary = `${plural(live.length, 'clip')}, ${g.done} of ${g.total} posted` + (stale ? `, ${stale} no longer in the library` : '');
-  const head = h('header', { class: 'pl-head' }, crumb('Playlists', '#/playlists'), titleBlock(p, ro), h('div', { class: 'pl-sub1' }, statusChip(p.status), h('span', { class: 'muted pl-summary', text: summary }), platChips(p), tpl ? h('span', { class: 'muted', text: `Template: ${tpl.name}` }) : null),
-    p.description ? h('p', { class: 'pl-desc', text: p.description }) : null, progressBar(p, false), bar);
+  const live = liveItems(p, state.clips), stale = p.items.length - live.length, sug = suggestStatus(p, state.clips), tpl = p.template_id ? templateById(p.template_id) : null;
+  const bar = h('div', { class: 'pl-bar' },
+    btn('Apply template', { ic: 'layers', cls: 'pl-apply', on: e => openApplyTemplate(p, e.currentTarget), disabled: ro || !live.length }),
+    btn('Add shortlisted', { ic: 'star', cls: 'pl-addsl', on: e => { const keys = [...liveKeys(state.shortlist, state.clips)].filter(k => !p.items.some(i => i.moment_id === k)); if (!keys.length) { toast('No new shortlisted moments to add.'); return; }
+      plAct({ type: 'add_items', id: p.id, moment_ids: keys, posts: Object.fromEntries(keys.map((k, j) => [k, newItemPost(p, repClip(k, state.clips), p.items.length + j + 1)])) }, `Added ${keys.length} shortlisted`); }, disabled: ro }),
+    btn('Copy all', { ic: 'copy', cls: 'pl-copyall', on: e => { const t = playlistText(p, state.clips); if (!t) { toast('Nothing to copy yet.'); return; } copyText(t, 'Copied the playlist text', e.currentTarget); }, disabled: !live.length }),
+    btn('Download CSV', { ic: 'download', cls: 'pl-csv', on: () => download(`${p.title.replace(/[^\w-]+/g, '_').slice(0, 40) || 'playlist'}.csv`, '﻿' + playlistCsv(p, state.clips, { modeOf: it => { const ms = itemModes(it, state.clips), c0 = modeOf(it); return [c0 ? c0.label : '', ms.map(x => x.label).join(' + '), c0 ? clipLink(c0.clip) : '']; } }), 'text/csv;charset=utf-8'), disabled: !live.length }),
+    btn('Share', { ic: 'share', cls: 'pl-share-b pl-share', on: e => openShareDialog(p, e.currentTarget) }),
+    btn('Duplicate', { ic: 'copy', kind: 'ghost', cls: 'pl-dup', on: () => dupPlaylist(p), disabled: ro }),
+    stale ? btn(`Remove ${stale} deleted`, { ic: 'trash', kind: 'ghost', cls: 'pl-rmstale', aria: `Remove all ${stale} deleted clips from this playlist`, on: () => plAct({ type: 'remove_stale', id: p.id, moment_ids: p.items.filter(i => isStale(i, state.clips)).map(i => i.moment_id) }, 'Removed deleted clips'), disabled: ro }) : null,
+    btn('Edit', { ic: 'edit', kind: 'ghost', cls: 'pl-editp', on: e => openPlaylistForm(p, e.currentTarget), disabled: ro }));
+  const head = h('header', { class: 'pl-head' }, crumb('Playlists', '#/playlists'), titleBlock(p, ro), statusChip(p.status),
+    p.description ? h('p', { class: 'pl-desc', text: p.description }) : null, h('div', { class: 'pl-meta' }, platChips(p), tpl ? h('span', { class: 'muted', text: `Template: ${tpl.name}` }) : null), progressBar(p), bar);
   const sugEl = sug && p.status !== 'posted' ? h('div', { class: 'pl-suggest', role: 'status' }, h('span', { text: 'Every moment is posted.' }), btn('Mark playlist as posted', { cls: 'sm pl-setposted', kind: 'primary', on: () => plAct({ type: 'update', id: p.id, patch: { status: 'posted' } }, 'Playlist marked posted'), disabled: ro })) : null;
   const ol = h('ol', { class: 'pl-items', 'aria-label': 'Items' });
   p.items.forEach((it, i) => ol.append(itemRow(p, it, i, p.items.length, ro)));
-  put(el, head, ro ? h('p', { class: 'pl-ro', text: roMsg() }) : null, sugEl, p.items.length ? ol : h('div', { class: 'empty pl-empty' }, h('p', { text: 'This playlist is empty.' }), h('p', { class: 'muted', text: 'Add moments with "Add to playlist" on any clip, or "Add shortlisted" in the ... menu.' })));
+  put(el, head, ro ? h('p', { class: 'pl-ro', text: roMsg() }) : null, sugEl, p.items.length ? ol : h('div', { class: 'empty pl-empty' }, h('p', { text: 'This playlist is empty.' }), h('p', { class: 'muted', text: 'Add moments with "Add to playlist" on any clip, or "Add shortlisted".' })));
 }
 
 export function render(el, hash) {

@@ -3,10 +3,8 @@ import { state, canWrite, emit, findClip } from './state.js';
 import { h, icon } from './dom.js';
 import { createModal } from './a11y.js';
 import { titleOf } from './fmt.js';
-import { toast } from './toast.js';
 import { momentKey } from './shortlist.js';
-import { menuEntries, momentPost } from './plui.js';
-import { captionText } from './playlists.js';
+import { menuEntries } from './plui.js';
 import { openPostedModal } from './postedui.js';
 import { kitOf, joinKit, copyText, downloadClip, shareClip, PLATFORMS, postedOf, setPosted, startPost } from './kit.js';
 
@@ -23,7 +21,6 @@ export function openCardSheet(c0, { opener } = {}) {
   };
   const titleField = kit.yt.fields.find(f => f.key === 'title');
   add('Copy title', 'copy', () => copyText(titleField ? titleField.value : titleOf(c), 'Title copied'), { id: 'copy-title' });
-  if (!trashed) { const p = momentPost(c).post; add('Copy caption', 'copy', () => { const t = captionText(p) || p.title; if (!t) { toast('No caption yet.'); return; } copyText(t, 'Caption copied'); }, { id: 'copy-caption' }); }
   add('Copy YouTube kit', 'copy', () => copyText(joinKit(kit.yt), 'YouTube kit copied'), { id: 'copy-yt' });
   add('Copy Instagram kit', 'copy', () => copyText(joinKit(kit.ig), 'Instagram kit copied'), { id: 'copy-ig' });
   if (c.video) add('Download', 'download', () => downloadClip(c), { id: 'download' });

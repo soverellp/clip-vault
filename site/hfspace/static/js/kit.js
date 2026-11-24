@@ -166,7 +166,7 @@ export function initMagnet() {
 
 // ---- lazy loaders: Post mode, the action sheet, the download queue and the shortcuts overlay are fetched on first use (keeps first paint light)
 const cssDone = new Map();
-export function ensureCss(href) {
+function ensureCss(href) {
   if (!cssDone.has(href)) cssDone.set(href, new Promise(res => { const l = h('link', { rel: 'stylesheet', href }); l.onload = l.onerror = () => res(); document.head.append(l); setTimeout(res, 3000); }));
   return cssDone.get(href);
 }

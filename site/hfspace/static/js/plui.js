@@ -9,7 +9,7 @@ import { copyText } from './kit.js';
 import { titleOf } from './fmt.js';
 import { momentKey, liveKeys } from './shortlist.js';
 import { parsePost } from './post.js';
-import { PL_LABEL, normTags, repClip, playlistsOf, captionText, captionRest, newId, postedPlatforms } from './playlists.js';
+import { PL_LABEL, normTags, repClip, playlistsOf, captionText, newId, postedPlatforms } from './playlists.js';
 import { PRESETS, renderPost } from './templates.js';
 import { setPlaylistsDoc } from './data.js';
 import { postedControl } from './postedui.js';
@@ -95,18 +95,18 @@ export function playlistsNav(cls = '') {
 on('clips', () => { for (const x of navs) { if (!x.a.isConnected && navs.size > 3) navs.delete(x); else x.paint(); } });
 
 // ---- the post-ready block (Post info switch ON): post title, caption, hashtags, planned-platform badges, the Posted on chips (D53), Copy caption, Add to playlist
-export function postInfoBlock(c, { control = true, compact = true } = {}) {
-  const info = momentPost(c), p = info.post, rest = captionRest(p.title, p.caption), sameTitle = !!p.title && p.title.trim().replace(/\s+/g, ' ').toLowerCase() === titleOf(c).trim().replace(/\s+/g, ' ').toLowerCase();   // the card / the clip screen already shows this title
+export function postInfoBlock(c, { control = true } = {}) {
+  const info = momentPost(c), p = info.post;
   const badges = [...info.platforms].map(k => h('span', { class: 'pi-badge', 'data-p': k, title: `Planned for ${PL_LABEL[k]}`, text: PL_LABEL[k] }));
+  const copyB = btn('Copy caption', { ic: 'copy', cls: 'sm pi-copy', on: e => { e.preventDefault(); e.stopPropagation(); const t = captionText(p) || p.title; if (!t) { toast('No caption yet.'); return; } copyText(t, 'Caption copied', e.currentTarget); } });
   const addB = addControl(() => [momentKey(c)], () => titleOf(c), { short: true });
-  // The caption is never shown twice: when it only repeats the title nothing is shown; Copy caption lives in the card "..." menu.
   return h('div', { class: 'pinfo', 'data-source': info.source },
-    sameTitle ? null : h('p', { class: 'pi-title', text: p.title || '(no post title)' }),
-    rest ? h('p', { class: 'pi-cap', text: rest }) : (!p.title && !p.caption ? h('p', { class: 'pi-cap', text: '(no caption yet)' }) : null),
+    h('p', { class: 'pi-title', text: p.title || '(no post title)' }),
+    h('p', { class: 'pi-cap', text: p.caption || '(no caption yet)' }),
     p.hashtags.length ? h('p', { class: 'pi-tags', text: p.hashtags.join(' ') }) : null,
     badges.length ? h('div', { class: 'pi-badges', 'aria-label': 'Planned platforms' }, ...badges) : null,
-    control ? postedControl(c, { compact }) : null,
-    h('div', { class: 'pi-actions' }, addB));
+    control ? postedControl(c) : null,
+    h('div', { class: 'pi-actions' }, copyB, addB));
 }
 // Card: keep ONE .pinfo block under the card link; rebuilt when its content changes, removed when the switch is off or in the trash.
 export function paintPostInfo(li, c, view) {
