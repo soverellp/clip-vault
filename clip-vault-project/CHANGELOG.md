@@ -2,7 +2,7 @@
 
 > **TL;DR** All dates 2026-11-17, times UTC from `git log` for the older entries. Hashes verified with `git log` in the clipper repo. Add new entries at the TOP. The newest entry below has no hashes: it was written without git access and nothing was committed by the author.
 
-## 2026-11-23 (D48: teaser x version switch; was mislabelled D47, D47 = playlists)
+## 2026-11-23 (D47: teaser x version switch)
 - NEW optional per-clip boolean `teaser` (default false): `build_hfvault.py` (META_FIELDS, validation), `vault_sync.py --meta-only` (via META_FIELDS), `check_index.py`. UI: `moments.js` (`byCombo`, `resolve`, `comboExists`, `selWith`), `library.js` (left teaser pill, `setChoice`), `css/moments.css` (`.tpill`). Default Clean + With teaser; no teaser clips = old behaviour.
 - Tests: `site/hfstatic/tests/test_variants_teaser_logic.mjs` (12), `test_teaser_ui.js` (14, Playwright 390 px), hfvault pytest +2. NOT rebuilt into `dist/` (needs the keys): run the build under the Bitwarden wrapper.
 

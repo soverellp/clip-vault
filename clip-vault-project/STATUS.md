@@ -1,7 +1,5 @@
 # STATUS (written 2026-11-18 about events up to 2026-11-17)
 
-> **STATUS BANNER (2026-11-24): the text below was written on 2026-11-18 and is HISTORY. The static Space is LIVE and the vault holds about 134 clips in 5 stream folders; the current state, deploy and verify steps are the section `CURRENT STATE` of `migration-setup/CLIP-VAULT.md`, the decisions are D43-D54 in DECISIONS.md.**
-
 > **TL;DR** Clips are uploaded (18 clips, 517 MB). The CURRENT plan is STATIC mode: the free Static Space `Soverellp/clip-vault-site` exists but is EMPTY; `site/hfstatic` (password gate + in-browser admin mode) is IN PROGRESS. Server mode (`site/hfspace`, Google sign-in) is built and mock-tested but NOT deployed (needs a paid Space, D23). Nothing is security-reviewed except the old HF-OAuth variant. No real-Space, real-browser-commit, real-Google or phone test has happened.
 
 ## Proven (real systems)
