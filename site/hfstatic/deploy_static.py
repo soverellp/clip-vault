@@ -18,6 +18,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import build_static as bs  # noqa: E402
+import check_live_config as clc  # noqa: E402
 
 DEFAULT_SPACE = "Soverellp/clip-vault-site"
 IGNORE = [".*", "*/.*", "*.env", "*.env.*"]
@@ -106,6 +107,9 @@ def main(argv=None):
         if miss:
             sys.exit("error: not in the deployable dist files: " + ", ".join(miss))
         files = sorted(a.only)
+    lacks = clc.missing_markers(dist)
+    if lacks:
+        sys.exit("error: REFUSING to deploy, this build lacks required features (" + "; ".join(lacks) + "). An older build would replace the live page. Fix: git fetch origin main && git merge --no-edit origin/main (list: site/hfstatic/required_features.json)")
     bad = scan_for_secrets(dist, files)
     if bad:
         sys.exit("error: a Hugging Face token pattern was found in: " + ", ".join(bad) + "; nothing uploaded")
@@ -143,7 +147,14 @@ def main(argv=None):
     except Exception as e:
         sys.exit(f"error: upload failed ({type(e).__name__}); nothing else was changed")
     owner, _, name = a.space.partition("/")
-    print(f"deployed: {a.space}\nopen: https://{owner.lower()}-{name.lower()}.static.hf.space (and https://huggingface.co/spaces/{a.space})")
+    base = f"https://{owner.lower()}-{name.lower()}.static.hf.space"
+    print(f"deployed: {a.space}\nopen: {base} (and https://huggingface.co/spaces/{a.space})")
+    ok, lines = clc.wait_features(dist, base)  # live js vs the deployed files; retries ~60 s (the static host can lag)
+    print("\n".join(lines))
+    if not ok:
+        print("MISMATCH: the LIVE page does not match what was just deployed (or lacks a required feature). Do NOT say deployed. Merge origin/main, redeploy, run check_live_config.py --features", file=sys.stderr)
+        sys.exit(1)
+    print("VERIFIED: live js/library.js and js/moments.js equal the deployed files")
 
 
 if __name__ == "__main__":

@@ -143,6 +143,15 @@ def test_yes_uploads_new_clips_with_poster_post_index_v2_and_audit_in_batches(vs
     assert "verify ok: 7" in out.out
 
 
+def test_yes_with_teaser_clip_prints_the_live_features_reminder(vs, remote, tmp_path, capsys):
+    repo = make_repo(tmp_path, [("s", "c1-teaser", b"T" * 100, True), ("s", "c2", b"A" * 100, True)])
+    rc, out = run(vs, repo, "--yes", capsys=capsys)
+    assert rc == 0 and "check_live_config.py --features (live page must show 4 toggles)" in out.out
+    repo2 = make_repo(tmp_path / "x", [("s", "c3", b"B" * 100, True)])
+    rc, out = run(vs, repo2, "--yes", capsys=capsys)
+    assert "--features" not in out.out
+
+
 def test_second_run_uploads_nothing_and_exits_2(vs, remote, tmp_path, capsys):
     repo = make_repo(tmp_path, [("s", "c1", b"A" * 100, True)])
     assert run(vs, repo, "--yes", capsys=capsys)[0] == 0

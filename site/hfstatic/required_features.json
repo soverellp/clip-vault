@@ -1,0 +1,5 @@
+{
+  "_doc": "Feature markers the deployed page must contain (deploy_static.py refuses without them; check_live_config.py --features compares the LIVE files). Edit this list when a feature is added; never to bypass a refusal: merge origin/main instead. Paths are relative to dist/.",
+  "js/library.js": ["teaser", "tpill", "vpill"],
+  "js/moments.js": ["teaser"]
+}

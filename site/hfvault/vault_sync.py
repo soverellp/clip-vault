@@ -678,6 +678,8 @@ def run_sync(a, repo, hub):
     bad = verify(hub, done)
     if bad: raise SyncError("verify FAILED (missing or wrong size in the dataset): " + ", ".join(bad[:5]))
     say(f"verify ok: {len(done)} clip(s) present in {a.hf_dataset} with matching sizes (names and sizes only checked)")
+    if any("-teaser" in lc.id for lc in done):
+        say("REMINDER: run python3 site/hfstatic/check_live_config.py --features (live page must show 4 toggles)")
     if done: say("next: python3 site/hfvault/vault_sync.py --meta-only  (streams list, thumbnails, Library fields; dry run first)")
     return 0 if done else 2
 
