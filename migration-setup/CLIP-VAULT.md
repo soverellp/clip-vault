@@ -170,3 +170,6 @@ D51 update: one add popup everywhere (also streams), quick re-save to the last p
 ## Known gaps
 - Nothing of the static design is deployed yet; see UNTESTED above.
 - The line name `Clip_vault_HFToken` in `Kagglegpu1.pdf` maps to `VAULT_READ_TOKEN`. The Hugging Face name of that token is not recorded here.
+
+## One card, four toggles; verify the live page (owner 2026-11-25)
+Every moment is one card: version toggle (With streamer / Clean) and, when teaser versions exist, teaser toggle (Without / With teaser), default Clean + With teaser. It needs vault_meta.json (group = moment id, variant, teaser: true) AND the live page running the teaser code. After every vault sync and every deploy compare the md5 of the live js/library.js and js/moments.js with site/hfstatic/dist and check that `teaser` appears in them; before a deploy merge origin/main so another session's build cannot replace the teaser code. A page deploy by another session or an old checkout has overwritten it twice (2026-11-23, 2026-11-24 17:29 UTC). Lesson: vault-one-card-four-toggles-verify-live.
