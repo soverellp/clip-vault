@@ -1,5 +1,7 @@
 # Clip Vault project
 
+> **STATUS BANNER (2026-11-24): the text below was written on 2026-11-18 and is HISTORY. The static Space is LIVE and the vault holds about 134 clips in 5 stream folders; the current state, deploy and verify steps are the section `CURRENT STATE` of `migration-setup/CLIP-VAULT.md`, the decisions are D43-D54 in DECISIONS.md.**
+
 > **TL;DR** CURRENT plan: a free STATIC Hugging Face Space (`Soverellp/clip-vault-site`) where friends type a shared password; the page decrypts a read-only token in the browser and reads the clips from a PRIVATE Hugging Face dataset. An admin mode lets the admin paste a dataset-scoped write token (memory only) to edit, upload, trash and delete. A Google-sign-in server mode is built but SAVED as an option (it needs a paid Space). This folder holds every decision, flow and doc, and is written to be moved to GitHub `soverellp/clip-vault`.
 
 Last updated: 2026-11-18 (events of 2026-11-17).
